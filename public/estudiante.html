@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Almedev - Estudiante</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="encabezado">
+    <h1>Almedev</h1>
+    <p id="subtitulo-encabezado">Acceso Estudiante</p>
+    <button class="btn-salir-encabezado" id="btn-salir-enc" onclick="cerrarSesion()">Salir</button>
+</header>
+
+<div class="contenedor">
+
+    <!-- ===================== SECCIÓN 1: Ingresar documento ===================== -->
+    <div id="sec-documento" class="seccion activa">
+        <button class="btn-volver" onclick="window.location.href='index.html'">← Inicio</button>
+        <div class="tarjeta">
+            <h2>¿Cuál es tu documento?</h2>
+            <div id="alerta-documento" class="alerta"></div>
+            <div class="grupo-campo">
+                <label for="input-documento">Número de documento</label>
+                <input type="number" id="input-documento" placeholder="Ej: 1234567890" inputmode="numeric">
+            </div>
+            <button class="btn btn-primario" onclick="verificarDocumento()">Continuar</button>
+        </div>
+    </div>
+
+    <!-- ===================== SECCIÓN 2: Login (estudiante ya registrado) ===================== -->
+    <div id="sec-login" class="seccion">
+        <button class="btn-volver" onclick="mostrarSeccion('sec-documento')">← Atrás</button>
+        <div class="tarjeta">
+            <h2>Bienvenido de nuevo</h2>
+            <p style="color:var(--gris); margin-bottom:16px;" id="nombre-login"></p>
+            <div id="alerta-login" class="alerta"></div>
+            <div class="grupo-campo">
+                <label for="input-contrasena-login">Contraseña</label>
+                <input type="password" id="input-contrasena-login" placeholder="Tu contraseña">
+            </div>
+            <button class="btn btn-primario" onclick="iniciarSesion()">Entrar</button>
+        </div>
+    </div>
+
+
+    <!-- ===================== SECCIÓN 4: Panel principal del estudiante ===================== -->
+    <div id="sec-panel" class="seccion">
+        <div class="tarjeta">
+            <h2 id="bienvenida-nombre">Hola, estudiante</h2>
+            <p style="color:var(--gris); font-size:0.9rem;" id="bienvenida-grado"></p>
+            <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn btn-primario btn-pequeño" onclick="mostrarSeccion('sec-seleccion'); cargarModulosEstudiante()">Hacer simulacro</button>
+                <button class="btn btn-secundario btn-pequeño" onclick="verHistorial()">Ver historial</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== SECCIÓN 5: Selección de módulo ===================== -->
+    <div id="sec-seleccion" class="seccion">
+        <button class="btn-volver" onclick="mostrarSeccion('sec-panel')">← Volver</button>
+        <div class="tarjeta">
+            <h2>Elige el simulacro</h2>
+            <div id="alerta-seleccion" class="alerta"></div>
+
+            <!-- El estudiante elige qué grado repasar (el contenido abarca 6° a 11°) -->
+            <div class="grupo-campo">
+                <label for="seleccion-grado-repaso">Grado a repasar</label>
+                <select id="seleccion-grado-repaso" onchange="cargarModulosEstudiante()">
+                    <option value="Grado 6">Grado 6°</option>
+                    <option value="Grado 7">Grado 7°</option>
+                    <option value="Grado 8">Grado 8°</option>
+                    <option value="Grado 9">Grado 9°</option>
+                    <option value="Grado 10">Grado 10°</option>
+                    <option value="Grado 11" selected>Grado 11°</option>
+                </select>
+            </div>
+
+            <label style="display:block; font-weight:600; margin-bottom:8px; color:var(--azul-oscuro); font-size:0.9rem;">Módulo temático</label>
+            <div class="grid-modulos" id="grid-modulos">
+                <div class="cargando" style="grid-column:1/-1;">
+                    <div class="spinner"></div><p>Cargando módulos...</p>
+                </div>
+            </div>
+            <button class="btn btn-primario" id="btn-comenzar" onclick="comenzarSimulacro()" style="display:none; margin-top:8px;">Comenzar simulacro</button>
+        </div>
+    </div>
+
+    <!-- ===================== SECCIÓN 6: Simulacro pregunta por pregunta ===================== -->
+    <div id="sec-simulacro" class="seccion">
+        <div class="tarjeta">
+            <!-- Barra de progreso -->
+            <div class="barra-progreso-contenedor">
+                <div class="barra-progreso-texto">
+                    <span id="progreso-texto">Pregunta 1 de 10</span>
+                    <span id="modulo-texto-simulacro"></span>
+                </div>
+                <div class="barra-progreso">
+                    <div class="barra-progreso-relleno" id="barra-relleno" style="width:0%"></div>
+                </div>
+            </div>
+
+            <!-- Enunciado de la pregunta actual -->
+            <p class="enunciado-pregunta" id="enunciado-pregunta"></p>
+
+            <!-- Opciones de respuesta -->
+            <div class="opciones" id="contenedor-opciones"></div>
+
+            <!-- Botones de navegación -->
+            <div class="btn-grupo">
+                <button class="btn btn-secundario" id="btn-anterior" onclick="preguntaAnterior()" style="display:none;">← Anterior</button>
+                <button class="btn btn-primario" id="btn-siguiente" onclick="preguntaSiguiente()">Siguiente →</button>
+                <button class="btn btn-exito" id="btn-finalizar" onclick="finalizarSimulacro()" style="display:none;">Finalizar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== SECCIÓN 7: Resultados ===================== -->
+    <div id="sec-resultados" class="seccion">
+        <div class="tarjeta" style="text-align:center;">
+            <h2>Resultados</h2>
+            <div class="circulo-puntaje">
+                <span class="numero" id="resultado-puntaje">0%</span>
+                <span class="label">Puntaje</span>
+            </div>
+            <div class="resumen-resultado">
+                <p id="resultado-resumen"></p>
+                <p id="resultado-modulo" style="margin-top:4px; font-size:0.85rem;"></p>
+            </div>
+            <div class="btn-grupo" style="justify-content:center;">
+                <button class="btn btn-secundario btn-pequeño" onclick="verRevision()">Ver revisión</button>
+                <button class="btn btn-primario btn-pequeño" onclick="mostrarSeccion('sec-seleccion')">Otro módulo</button>
+                <button class="btn btn-secundario btn-pequeño" onclick="mostrarSeccion('sec-panel')">Inicio</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== SECCIÓN 8: Revisión de respuestas ===================== -->
+    <div id="sec-revision" class="seccion">
+        <button class="btn-volver" onclick="mostrarSeccion('sec-resultados')">← Resultados</button>
+        <div class="tarjeta">
+            <h2>Revisión de respuestas</h2>
+            <div id="contenedor-revision"></div>
+        </div>
+    </div>
+
+    <!-- ===================== SECCIÓN 9: Historial ===================== -->
+    <div id="sec-historial" class="seccion">
+        <button class="btn-volver" onclick="mostrarSeccion('sec-panel')">← Volver</button>
+        <div class="tarjeta">
+            <h2>Mi historial</h2>
+            <div id="contenedor-historial"></div>
+        </div>
+    </div>
+
+</div><!-- fin .contenedor -->
+
+<footer class="pie-pagina">Desarrollado por Jorge Hernan Aldana Melo</footer>
+
+<!-- ===================== MODAL ADVERTENCIA CAMBIO DE PESTAÑA ===================== -->
+<div id="modal-trampa" style="
+    display:none; position:fixed; inset:0; z-index:9999;
+    background:rgba(0,0,0,0.85); justify-content:center; align-items:center;">
+    <div style="
+        background:#fff; border-radius:16px; padding:36px 28px;
+        max-width:380px; width:90%; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+        <div style="font-size:3rem; margin-bottom:12px;">⚠️</div>
+        <h2 style="color:#C62828; margin-bottom:8px;">¡Atención!</h2>
+        <p style="color:#424242; margin-bottom:6px;">
+            Saliste del simulacro. <strong>No está permitido cambiar de pestaña</strong> durante la prueba.
+        </p>
+        <p id="modal-trampa-contador" style="color:#9E9E9E; font-size:0.85rem; margin-bottom:20px;"></p>
+        <button class="btn btn-primario" onclick="cerrarModalTrampa()">Entendido, continuar</button>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// ESTADO GLOBAL DE LA APLICACIÓN
+// ============================================================
+const estado = {
+    documentoIngresado: '',  // Documento que escribió el usuario
+    estudiante: null,        // Datos del estudiante logueado
+    moduloSeleccionado: '',  // Módulo elegido para el simulacro
+    preguntas: [],           // Preguntas del simulacro actual
+    respuestas: {},          // Respuestas seleccionadas { indice: 'A'|'B'|'C'|'D' }
+    preguntaActual: 0,       // Índice de la pregunta que se muestra
+    ultimoSimulacroId: null  // ID del último simulacro guardado (para revisión)
+};
+
+// ============================================================
+// UTILIDADES
+// ============================================================
+
+// Muestra una sección y oculta todas las demás
+function mostrarSeccion(id) {
+    document.querySelectorAll('.seccion').forEach(s => s.classList.remove('activa'));
+    document.getElementById(id).classList.add('activa');
+    if (id === 'sec-seleccion' && estado.estudiante) {
+        cargarModulosEstudiante();
+    }
+}
+
+// Muestra un mensaje de alerta en un elemento dado
+function mostrarAlerta(idElemento, mensaje, tipo) {
+    const el = document.getElementById(idElemento);
+    el.textContent = mensaje;
+    el.className = `alerta alerta-${tipo} visible`;
+}
+
+// Oculta una alerta
+function ocultarAlerta(idElemento) {
+    document.getElementById(idElemento).className = 'alerta';
+}
+
+// Formatea una fecha legible con hora
+function formatearFecha(fechaStr) {
+    const fecha = new Date(fechaStr);
+    const parte_fecha = fecha.toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
+    const parte_hora = fecha.toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+    return `${parte_fecha} · ${parte_hora}`;
+}
+
+// ============================================================
+// FLUJO DE AUTENTICACIÓN
+// ============================================================
+
+// Paso 1: verifica si el documento existe en la base de datos
+async function verificarDocumento() {
+    const documento = document.getElementById('input-documento').value.trim();
+    if (!documento) {
+        mostrarAlerta('alerta-documento', 'Ingresa tu número de documento', 'error');
+        return;
+    }
+    ocultarAlerta('alerta-documento');
+    estado.documentoIngresado = documento;
+
+    try {
+        const res = await fetch(`/api/auth/existe/${documento}`);
+        const data = await res.json();
+
+        if (data.existe) {
+            // Si está registrado, mostramos el formulario de login
+            document.getElementById('nombre-login').textContent = `Documento: ${documento}`;
+            mostrarSeccion('sec-login');
+        } else {
+            // Si no existe, informamos que debe contactar al docente
+            mostrarAlerta('alerta-documento', 'Este documento no está registrado. Comunícate con tu docente para que te inscriba.', 'error');
+        }
+    } catch (e) {
+        mostrarAlerta('alerta-documento', 'Error de conexión. Verifica que el servidor esté corriendo.', 'error');
+    }
+}
+
+// Paso 2a: login con contraseña
+async function iniciarSesion() {
+    const contrasena = document.getElementById('input-contrasena-login').value;
+    if (!contrasena) {
+        mostrarAlerta('alerta-login', 'Ingresa tu contraseña', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/auth/estudiante', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ documento: estado.documentoIngresado, contrasena })
+        });
+        const data = await res.json();
+
+        if (data.exito) {
+            entrarAlPanel(data.estudiante);
+        } else {
+            mostrarAlerta('alerta-login', data.mensaje, 'error');
+        }
+    } catch (e) {
+        mostrarAlerta('alerta-login', 'Error de conexión', 'error');
+    }
+}
+
+// Entra al panel principal con los datos del estudiante
+function entrarAlPanel(estudiante) {
+    estado.estudiante = estudiante;
+    document.getElementById('bienvenida-nombre').textContent = `Hola, ${estudiante.nombre.split(' ')[0]}`;
+    document.getElementById('bienvenida-grado').textContent = `${estudiante.grado} · Documento: ${estudiante.documento}`;
+    document.getElementById('subtitulo-encabezado').textContent = estudiante.nombre;
+    document.getElementById('btn-salir-enc').classList.add('visible');
+    mostrarSeccion('sec-panel');
+    cargarModulosEstudiante();
+}
+
+function cerrarSesion() {
+    estado.estudiante = null;
+    estado.documentoIngresado = '';
+    document.getElementById('input-documento').value = '';
+    document.getElementById('input-contrasena-login').value = '';
+    document.getElementById('btn-salir-enc').classList.remove('visible');
+    mostrarSeccion('sec-documento');
+    document.getElementById('subtitulo-encabezado').textContent = 'Acceso Estudiante';
+}
+
+// ============================================================
+// SELECCIÓN DE MÓDULO Y SIMULACRO
+// ============================================================
+
+let btnModuloActivo = null;
+
+// Carga los módulos del grado de repaso elegido y dibuja los botones
+async function cargarModulosEstudiante() {
+    const grid = document.getElementById('grid-modulos');
+    const grado = document.getElementById('seleccion-grado-repaso').value;
+    grid.innerHTML = '<div class="cargando" style="grid-column:1/-1;"><div class="spinner"></div><p>Cargando módulos...</p></div>';
+
+    try {
+        // Pedimos en paralelo la lista de módulos y el estado de intentos del estudiante
+        const [resModulos, resEstado] = await Promise.all([
+            fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`),
+            fetch(`/api/simulacros/estado-intentos?estudianteId=${estado.estudiante.id}&grado=${encodeURIComponent(grado)}`)
+        ]);
+        const dataModulos = await resModulos.json();
+        const dataEstado = await resEstado.json();
+        const modulos = dataModulos.modulos || [];
+        const estadoIntentos = dataEstado.estado || {};
+
+        if (modulos.length === 0) {
+            grid.innerHTML = '<p style="color:var(--gris); grid-column:1/-1; text-align:center;">No hay módulos disponibles para este grado.</p>';
+            return;
+        }
+
+        btnModuloActivo = null;
+        estado.moduloSeleccionado = '';
+        document.getElementById('btn-comenzar').style.display = 'none';
+
+        grid.innerHTML = modulos.map(m => {
+            const info = estadoIntentos[m.nombre] || { usados: 0, permitidos: 1, puede: true };
+            if (info.puede) {
+                return `
+                    <button class="btn-modulo" onclick="seleccionarModulo(this, '${m.nombre.replace(/'/g, "\\'")}')">
+                        ${m.nombre}
+                    </button>
+                `;
+            }
+            // Módulo ya respondido: se muestra bloqueado hasta que el docente habilite otro intento
+            return `
+                <button class="btn-modulo btn-modulo-bloqueado" disabled
+                    title="Ya respondiste este módulo. Pide a tu docente que te habilite un nuevo intento.">
+                    🔒 ${m.nombre}
+                </button>
+            `;
+        }).join('');
+    } catch (e) {
+        grid.innerHTML = '<p style="color:var(--rojo); grid-column:1/-1;">Error al cargar módulos.</p>';
+    }
+}
+
+// Marca el módulo seleccionado visualmente
+function seleccionarModulo(btn, modulo) {
+    if (btnModuloActivo) btnModuloActivo.classList.remove('seleccionado');
+    btn.classList.add('seleccionado');
+    btnModuloActivo = btn;
+    estado.moduloSeleccionado = modulo;
+    document.getElementById('btn-comenzar').style.display = 'block';
+    ocultarAlerta('alerta-seleccion');
+}
+
+// Carga las preguntas del servidor y empieza el simulacro
+async function comenzarSimulacro() {
+    if (!estado.moduloSeleccionado) {
+        mostrarAlerta('alerta-seleccion', 'Selecciona un módulo primero', 'error');
+        return;
+    }
+
+    try {
+        // Usamos el grado de repaso elegido, no el grado del estudiante
+        const gradoRepaso = document.getElementById('seleccion-grado-repaso').value;
+        const params = new URLSearchParams({
+            grado: gradoRepaso,
+            modulo: estado.moduloSeleccionado,
+            cantidad: 10,
+            estudianteId: estado.estudiante.id
+        });
+        const res = await fetch(`/api/preguntas/simulacro?${params}`);
+        const data = await res.json();
+
+        if (!data.exito || !data.preguntas || data.preguntas.length === 0) {
+            mostrarAlerta('alerta-seleccion', data.mensaje || 'No hay preguntas disponibles para este módulo y grado.', 'error');
+            return;
+        }
+
+        // Reiniciamos el estado del simulacro
+        estado.preguntas = data.preguntas;
+        estado.respuestas = {};
+        estado.preguntaActual = 0;
+        estado.gradoRepaso = gradoRepaso;
+
+        mostrarSeccion('sec-simulacro');
+        document.getElementById('modulo-texto-simulacro').textContent = estado.moduloSeleccionado;
+        renderizarPregunta();
+    } catch (e) {
+        mostrarAlerta('alerta-seleccion', 'Error al cargar las preguntas', 'error');
+    }
+}
+
+// ============================================================
+// SIMULACRO PREGUNTA POR PREGUNTA
+// ============================================================
+
+// Dibuja la pregunta actual en pantalla
+function renderizarPregunta() {
+    const total = estado.preguntas.length;
+    const indice = estado.preguntaActual;
+    const pregunta = estado.preguntas[indice];
+
+    // Actualiza barra de progreso
+    document.getElementById('progreso-texto').textContent = `Pregunta ${indice + 1} de ${total}`;
+    document.getElementById('barra-relleno').style.width = `${((indice + 1) / total) * 100}%`;
+
+    // Muestra el enunciado
+    document.getElementById('enunciado-pregunta').textContent = pregunta.enunciado;
+
+    // Dibuja las 4 opciones
+    const opciones = [
+        { letra: 'A', texto: pregunta.opcion_a },
+        { letra: 'B', texto: pregunta.opcion_b },
+        { letra: 'C', texto: pregunta.opcion_c },
+        { letra: 'D', texto: pregunta.opcion_d }
+    ];
+
+    const contenedor = document.getElementById('contenedor-opciones');
+    contenedor.innerHTML = '';
+    opciones.forEach(op => {
+        const div = document.createElement('div');
+        div.className = 'opcion';
+        if (estado.respuestas[indice] === op.letra) div.classList.add('seleccionada');
+        div.onclick = () => seleccionarRespuesta(op.letra);
+        div.innerHTML = `
+            <div class="opcion-letra">${op.letra}</div>
+            <div class="opcion-texto">${op.texto}</div>
+        `;
+        contenedor.appendChild(div);
+    });
+
+    // Muestra u oculta botones según la posición
+    document.getElementById('btn-anterior').style.display = indice > 0 ? 'inline-block' : 'none';
+    document.getElementById('btn-siguiente').style.display = indice < total - 1 ? 'inline-block' : 'none';
+    document.getElementById('btn-finalizar').style.display = indice === total - 1 ? 'inline-block' : 'none';
+}
+
+// Registra la respuesta seleccionada
+function seleccionarRespuesta(letra) {
+    estado.respuestas[estado.preguntaActual] = letra;
+    // Actualiza visualmente cuál opción está marcada
+    document.querySelectorAll('.opcion').forEach((el, i) => {
+        const letras = ['A', 'B', 'C', 'D'];
+        el.classList.toggle('seleccionada', letras[i] === letra);
+    });
+}
+
+function preguntaSiguiente() {
+    if (estado.preguntaActual < estado.preguntas.length - 1) {
+        estado.preguntaActual++;
+        renderizarPregunta();
+    }
+}
+
+function preguntaAnterior() {
+    if (estado.preguntaActual > 0) {
+        estado.preguntaActual--;
+        renderizarPregunta();
+    }
+}
+
+// Envía las respuestas al servidor y muestra los resultados
+async function finalizarSimulacro(forzado = false) {
+    // Verificamos que haya respondido todas las preguntas (solo si no es forzado)
+    if (!forzado) {
+        const sinResponder = estado.preguntas.length - Object.keys(estado.respuestas).length;
+        if (sinResponder > 0) {
+            if (!confirm(`Tienes ${sinResponder} pregunta(s) sin responder. ¿Deseas finalizar de todas formas?`)) return;
+        }
+    }
+
+    // Construimos el array de respuestas para enviar al servidor
+    // Para validar si son correctas necesitamos obtener las respuestas correctas
+    // Las pedimos al servidor con las mismas IDs
+    const idsPreguntas = estado.preguntas.map(p => p.id);
+
+    // Enviamos las respuestas directamente; el cálculo de correctas
+    // lo hace el servidor comparando contra la base de datos no es posible
+    // aquí porque el front no tiene las respuestas correctas (por diseño).
+    // En cambio, enviamos las respuestas y el servidor calcula.
+    // Primero guardamos: construimos payload con respuesta dada y marcamos esCorrecta=false
+    // El servidor necesita saber la respuesta correcta - usaremos el endpoint de revisión después.
+
+    // Solución: guardamos el simulacro enviando las respuestas,
+    // el servidor las compara internamente con la BD.
+    const payload = {
+        estudianteId: estado.estudiante.id,
+        grado: estado.gradoRepaso,
+        modulo: estado.moduloSeleccionado,
+        respuestas: estado.preguntas.map((p, i) => ({
+            preguntaId: p.id,
+            respuestaDada: estado.respuestas[i] || '',
+            esCorrecta: false  // El servidor recalcula esto
+        }))
+    };
+
+    try {
+        // Usamos el endpoint especial que valida respuestas contra la BD
+        const res = await fetch('/api/simulacros/guardar-validado', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.exito) {
+            estado.ultimoSimulacroId = data.simulacroId;
+            mostrarResultados(data.puntaje, data.correctas, data.total);
+        } else {
+            alert(data.mensaje || 'Error al guardar el simulacro. Intenta de nuevo.');
+        }
+    } catch (e) {
+        alert('Error de conexión al guardar el simulacro.');
+    }
+}
+
+// Muestra la pantalla de resultados con puntaje
+function mostrarResultados(puntaje, correctas, total) {
+    document.getElementById('resultado-puntaje').textContent = `${puntaje}%`;
+    document.getElementById('resultado-resumen').textContent = `Respondiste ${correctas} de ${total} preguntas correctamente`;
+    document.getElementById('resultado-modulo').textContent = `Módulo: ${estado.moduloSeleccionado} · ${estado.estudiante.grado}`;
+
+    // Cambiamos el color del círculo según el puntaje
+    const circulo = document.querySelector('.circulo-puntaje');
+    if (puntaje >= 80) circulo.style.background = 'var(--verde)';
+    else if (puntaje >= 60) circulo.style.background = 'var(--amarillo)';
+    else circulo.style.background = 'var(--rojo)';
+
+    mostrarSeccion('sec-resultados');
+}
+
+// ============================================================
+// REVISIÓN DE RESPUESTAS
+// ============================================================
+
+async function verRevision() {
+    if (!estado.ultimoSimulacroId) return;
+
+    try {
+        const res = await fetch(`/api/simulacros/revision/${estado.ultimoSimulacroId}`);
+        const data = await res.json();
+
+        const contenedor = document.getElementById('contenedor-revision');
+        contenedor.innerHTML = '';
+
+        data.respuestas.forEach((r, i) => {
+            const div = document.createElement('div');
+            div.className = `item-revision ${r.es_correcta ? 'correcto' : 'incorrecto'}`;
+
+            const icono = r.es_correcta ? '✓' : '✗';
+            const opcionesTexto = {
+                'A': r.opcion_a, 'B': r.opcion_b, 'C': r.opcion_c, 'D': r.opcion_d
+            };
+
+            div.innerHTML = `
+                <div class="pregunta-texto">${i+1}. ${icono} ${r.enunciado}</div>
+                <div class="respuesta-info">
+                    <strong>Tu respuesta:</strong> ${r.respuesta_dada || 'Sin responder'} – ${opcionesTexto[r.respuesta_dada] || ''}<br>
+                    <strong>Respuesta correcta:</strong> ${r.respuesta_correcta} – ${opcionesTexto[r.respuesta_correcta]}
+                </div>
+                ${r.justificacion ? `<div class="justificacion">💡 ${r.justificacion}</div>` : ''}
+            `;
+            contenedor.appendChild(div);
+        });
+
+        mostrarSeccion('sec-revision');
+    } catch (e) {
+        alert('Error al cargar la revisión');
+    }
+}
+
+// ============================================================
+// HISTORIAL
+// ============================================================
+
+async function verHistorial() {
+    const contenedor = document.getElementById('contenedor-historial');
+    contenedor.innerHTML = '<div class="cargando"><div class="spinner"></div><p>Cargando...</p></div>';
+    mostrarSeccion('sec-historial');
+
+    try {
+        const res = await fetch(`/api/simulacros/historial/${estado.estudiante.id}`);
+        const data = await res.json();
+
+        if (data.historial.length === 0) {
+            contenedor.innerHTML = '<p style="color:var(--gris); text-align:center; padding:20px;">Aún no has realizado ningún simulacro.</p>';
+            return;
+        }
+
+        contenedor.innerHTML = '';
+
+        // Contar cuántos intentos totales hay por módulo para numerar cronológicamente
+        const totalPorModulo = {};
+        data.historial.forEach(s => {
+            totalPorModulo[s.modulo] = (totalPorModulo[s.modulo] || 0) + 1;
+        });
+        // Cursor por módulo: la lista viene DESC (más reciente primero),
+        // así que el primero que aparece tiene el número más alto
+        const cursorIntento = {};
+
+        data.historial.forEach(s => {
+            if (cursorIntento[s.modulo] === undefined) {
+                cursorIntento[s.modulo] = totalPorModulo[s.modulo];
+            }
+            const numIntento = cursorIntento[s.modulo]--;
+
+            const div = document.createElement('div');
+            div.className = 'item-historial';
+            const claseBadge = s.puntaje >= 80 ? 'alto' : (s.puntaje >= 60 ? 'medio' : 'bajo');
+            div.innerHTML = `
+                <div class="historial-info">
+                    <div class="historial-modulo">${s.modulo}</div>
+                    <div class="historial-fecha">Intento ${numIntento} · ${s.grado} · ${formatearFecha(s.fecha)} · ${s.correctas}/${s.total_preguntas} correctas</div>
+                </div>
+                <div class="badge-puntaje ${claseBadge}">${s.puntaje}%</div>
+            `;
+            contenedor.appendChild(div);
+        });
+    } catch (e) {
+        contenedor.innerHTML = '<p style="color:var(--rojo);">Error al cargar el historial.</p>';
+    }
+}
+
+// Permitir Enter en el campo de documento
+document.getElementById('input-documento').addEventListener('keydown', e => {
+    if (e.key === 'Enter') verificarDocumento();
+});
+document.getElementById('input-contrasena-login').addEventListener('keydown', e => {
+    if (e.key === 'Enter') iniciarSesion();
+});
+
+// ============================================================
+// DETECCIÓN DE CAMBIO DE PESTAÑA DURANTE EL SIMULACRO
+// ============================================================
+let contadorSalidas = 0;
+
+function enSimulacro() {
+    return document.getElementById('sec-simulacro').classList.contains('activa');
+}
+
+function cerrarModalTrampa() {
+    document.getElementById('modal-trampa').style.display = 'none';
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && enSimulacro()) {
+        contadorSalidas++;
+
+        if (contadorSalidas >= 3) {
+            // A la tercera salida se finaliza automáticamente al volver
+            return;
+        }
+    } else if (!document.hidden && enSimulacro() && contadorSalidas > 0) {
+        if (contadorSalidas >= 3) {
+            finalizarSimulacro(true);
+            return;
+        }
+
+        const restantes = 3 - contadorSalidas;
+        const modal = document.getElementById('modal-trampa');
+        document.getElementById('modal-trampa-contador').textContent =
+            `Salidas detectadas: ${contadorSalidas} de 3. ${restantes === 1 ? '⚠️ Una más y la prueba se enviará automáticamente.' : `Te quedan ${restantes} advertencias.`}`;
+        modal.style.display = 'flex';
+    }
+});
+</script>
+
+</body>
+</html>

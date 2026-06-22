@@ -1,13 +1,17 @@
 // database.js
 // Manejo de la base de datos MySQL
 
+// Diagnóstico ANTES de dotenv para aislar si dotenvx borra las vars
+console.log('[PRE-DOTENV] DATABASE_URL:', !!process.env.DATABASE_URL);
+console.log('[PRE-DOTENV] DB_HOST:', process.env.DB_HOST || '(no definido)');
+console.log('[PRE-DOTENV] Claves disponibles:', Object.keys(process.env).filter(k => !k.startsWith('npm_') && !k.startsWith('NODE')).join(', '));
+
 require('dotenv').config();
+
+console.log('[POST-DOTENV] DATABASE_URL:', !!process.env.DATABASE_URL);
+
 const mysql = require('mysql2');
 const crypto = require('crypto');
-
-// Diagnóstico de variables de entorno al arrancar
-console.log('DATABASE_URL definida:', !!process.env.DATABASE_URL);
-console.log('DB_HOST:', process.env.DB_HOST || '(no definido)');
 
 // Conexión a MySQL
 // charset utf8mb4 es necesario para que las tildes y ñ se guarden y lean correctamente

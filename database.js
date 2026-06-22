@@ -8,9 +8,16 @@ const crypto = require('crypto');
 // Conexión a MySQL
 // charset utf8mb4 es necesario para que las tildes y ñ se guarden y lean correctamente
 const conexion = mysql.createPool(
-    process.env.DATABASE_URL
-        ? { uri: process.env.DATABASE_URL, waitForConnections: true, connectionLimit: 10, charset: 'utf8mb4' }
-        : { host: process.env.DB_HOST, port: process.env.DB_PORT || 3306, user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME, waitForConnections: true, connectionLimit: 10, charset: 'utf8mb4' }
+    process.env.DATABASE_URL || {
+        host: process.env.DB_HOST,
+        port: process.env.DB_PORT || 3306,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+        waitForConnections: true,
+        connectionLimit: 10,
+        charset: 'utf8mb4'
+    }
 );
 
 const db = conexion.promise();

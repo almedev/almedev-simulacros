@@ -5,6 +5,10 @@ require('dotenv').config();
 const mysql = require('mysql2');
 const crypto = require('crypto');
 
+// Diagnóstico de variables de entorno al arrancar
+console.log('DATABASE_URL definida:', !!process.env.DATABASE_URL);
+console.log('DB_HOST:', process.env.DB_HOST || '(no definido)');
+
 // Conexión a MySQL
 // charset utf8mb4 es necesario para que las tildes y ñ se guarden y lean correctamente
 const conexion = mysql.createPool(

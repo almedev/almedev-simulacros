@@ -673,30 +673,48 @@ async function guardarIntentosGrado() {
     const esIlimitado = intentos === '0';
     const textoVeces = esIlimitado ? 'intentos ilimitados' : (intentos === '1' ? '1 vez' : `${intentos} veces`);
 
-    if (!confirm(`¿Desea guardar ${textoVeces} para el repaso del ${grado}?`)) {
+    const confirmMsg = esIlimitado
+        ? '¿Desea configurar intentos ilimitados para TODOS los grados (6° a 11°)?'
+        : `¿Desea guardar ${textoVeces} para el repaso del ${grado}?`;
+
+    if (!confirm(confirmMsg)) {
         mostrarAlerta('alerta-intentos-grado', 'No se guardaron cambios.', 'info');
         return;
     }
 
     try {
-        const res = await fetch('/api/simulacros/intentos-grado', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ grado, intentos })
-        });
-        if (!res.ok) {
-            mostrarAlerta('alerta-intentos-grado', 'No se pudo guardar. Reinicia el servidor.', 'error');
-            return;
-        }
-        const data = await res.json();
-        if (data.exito) {
-            const mensaje = esIlimitado
-                ? `Se han configurado intentos ilimitados para el repaso del ${grado}.`
-                : `Se han configurado ${intentos} intento${intentos === '1' ? '' : 's'} para el repaso del ${grado}.`;
-            mostrarAlerta('alerta-intentos-grado', mensaje, 'exito');
+        if (esIlimitado) {
+            const grados = ['Grado 6', 'Grado 7', 'Grado 8', 'Grado 9', 'Grado 10', 'Grado 11'];
+            const resultados = await Promise.all(grados.map(g =>
+                fetch('/api/simulacros/intentos-grado', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ grado: g, intentos })
+                })
+            ));
+            if (resultados.some(r => !r.ok)) {
+                mostrarAlerta('alerta-intentos-grado', 'No se pudo guardar en todos los grados. Reinicia el servidor.', 'error');
+                return;
+            }
+            mostrarAlerta('alerta-intentos-grado', 'Se han configurado intentos ilimitados para todos los grados.', 'exito');
             cargarEstadisticas();
         } else {
-            mostrarAlerta('alerta-intentos-grado', data.mensaje, 'error');
+            const res = await fetch('/api/simulacros/intentos-grado', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ grado, intentos })
+            });
+            if (!res.ok) {
+                mostrarAlerta('alerta-intentos-grado', 'No se pudo guardar. Reinicia el servidor.', 'error');
+                return;
+            }
+            const data = await res.json();
+            if (data.exito) {
+                mostrarAlerta('alerta-intentos-grado', `Se han configurado ${intentos} intento${intentos === '1' ? '' : 's'} para el repaso del ${grado}.`, 'exito');
+                cargarEstadisticas();
+            } else {
+                mostrarAlerta('alerta-intentos-grado', data.mensaje, 'error');
+            }
         }
     } catch (e) {
         mostrarAlerta('alerta-intentos-grado', 'Error de conexion', 'error');

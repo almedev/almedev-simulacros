@@ -4,10 +4,11 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const authDocente = require('../middleware/authDocente');
 
 // POST /api/estudiantes/registro
 // Registra un estudiante nuevo con documento, nombre, grado y contraseña
-router.post('/registro', async (req, res) => {
+router.post('/registro', authDocente, async (req, res) => {
     const { documento, nombre, grado, contrasena } = req.body;
 
     if (!documento || !nombre || !grado || !contrasena) {
@@ -42,7 +43,7 @@ router.post('/registro', async (req, res) => {
 
 // GET /api/estudiantes
 // Devuelve la lista completa de estudiantes (solo para el docente)
-router.get('/', async (req, res) => {
+router.get('/', authDocente, async (req, res) => {
     try {
         const estudiantes = await db.obtenerTodosEstudiantes();
         res.json({ exito: true, estudiantes });
@@ -54,7 +55,7 @@ router.get('/', async (req, res) => {
 
 // DELETE /api/estudiantes/:id
 // Elimina un estudiante por su ID (solo para el docente)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authDocente, async (req, res) => {
     try {
         await db.eliminarEstudiante(req.params.id);
         res.json({ exito: true, mensaje: 'Estudiante eliminado' });

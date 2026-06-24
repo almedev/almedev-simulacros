@@ -397,6 +397,11 @@ let intervalPolling = null;       // Referencia al polling de estadísticas
 let todasEstadisticas = [];       // Cache de estadísticas para el filtro
 let datosActuales = [];           // Datos filtrados actualmente visibles (para exportar)
 
+function authHeaders(extra = {}) {
+    const token = sessionStorage.getItem('docenteToken');
+    return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extra };
+}
+
 // ============================================================
 // AUTENTICACIÓN
 // ============================================================
@@ -419,6 +424,7 @@ async function iniciarSesion() {
         const data = await res.json();
 
         if (data.exito) {
+            sessionStorage.setItem('docenteToken', data.token);
             sesionActiva = true;
             document.getElementById('subtitulo-enc').textContent = 'Panel Docente';
             document.getElementById('btn-salir-enc').classList.add('visible');
@@ -493,7 +499,7 @@ function formatearFecha(fechaStr) {
 
 async function cargarEstadisticas() {
     try {
-        const res = await fetch('/api/simulacros/estadisticas');
+        const res = await fetch('/api/simulacros/estadisticas', { headers: authHeaders() });
         const data = await res.json();
         todasEstadisticas = data.estadisticas || [];
         filtrarEstadisticas();
@@ -510,7 +516,7 @@ async function actualizarFiltroModulos() {
     select.innerHTML = '<option value="">Todos</option>';
     if (!grado) return;
     try {
-        const res = await fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`);
+        const res = await fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`, { headers: authHeaders() });
         const data = await res.json();
         (data.modulos || []).forEach(m => {
             const opt = document.createElement('option');
@@ -650,7 +656,7 @@ function exportarExcel() {
 async function cargarIntentosGrado() {
     const grado = document.getElementById('intentos-grado-select').value;
     try {
-        const res = await fetch(`/api/simulacros/intentos-grado?grado=${encodeURIComponent(grado)}`);
+        const res = await fetch(`/api/simulacros/intentos-grado?grado=${encodeURIComponent(grado)}`, { headers: authHeaders() });
         if (!res.ok) {
             mostrarAlerta('alerta-intentos-grado', 'No se encontro la ruta de intentos. Reinicia el servidor para cargar los cambios.', 'error');
             return;
@@ -683,7 +689,7 @@ async function guardarIntentosGrado() {
     try {
         const res = await fetch('/api/simulacros/intentos-grado', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({ grado, intentos })
         });
         if (!res.ok) {
@@ -711,7 +717,7 @@ async function habilitarReintento(estudianteId, grado, modulo, nombreEstudiante)
     try {
         const res = await fetch('/api/simulacros/habilitar-reintento', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({ estudianteId, grado, modulo })
         });
         const data = await res.json();
@@ -733,7 +739,7 @@ async function habilitarReintento(estudianteId, grado, modulo, nombreEstudiante)
 async function cargarModulos() {
     const grado = document.getElementById('modulos-grado-select').value;
     try {
-        const res = await fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`);
+        const res = await fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`, { headers: authHeaders() });
         const data = await res.json();
         const modulos = data.modulos || [];
 
@@ -762,7 +768,7 @@ async function cargarModulosFiltro() {
     if (!grado) return;  // Sin grado elegido, dejamos solo "Todos"
 
     try {
-        const res = await fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`);
+        const res = await fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`, { headers: authHeaders() });
         const data = await res.json();
         (data.modulos || []).forEach(m => {
             filtro.innerHTML += `<option value="${m.nombre}">${m.nombre}</option>`;
@@ -778,7 +784,7 @@ async function cargarModulosFormulario() {
     if (!grado) return;
 
     try {
-        const res = await fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`);
+        const res = await fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`, { headers: authHeaders() });
         const data = await res.json();
         (data.modulos || []).forEach(m => {
             select.innerHTML += `<option value="${m.nombre}">${m.nombre}</option>`;
@@ -802,7 +808,7 @@ async function guardarModulo() {
         const metodo = id ? 'PUT' : 'POST';
         const res = await fetch(url, {
             method: metodo,
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({ grado, nombre })
         });
         const data = await res.json();
@@ -839,7 +845,7 @@ function cancelarEdicionModulo() {
 async function borrarModulo(id, nombre) {
     if (!confirm(`¿Eliminar el módulo "${nombre}"?\nLas preguntas asociadas quedarán sin módulo visible pero no se borrarán.`)) return;
     try {
-        const res = await fetch(`/api/modulos/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/modulos/${id}`, { method: 'DELETE', headers: authHeaders() });
         const data = await res.json();
         if (data.exito) cargarModulos();
         else mostrarAlerta('alerta-modulos', data.mensaje, 'error');
@@ -864,7 +870,7 @@ async function cargarPreguntas() {
     contenedor.innerHTML = '<div class="cargando"><div class="spinner"></div><p>Cargando...</p></div>';
 
     try {
-        const res = await fetch(`/api/preguntas?${params}`);
+        const res = await fetch(`/api/preguntas?${params}`, { headers: authHeaders() });
         const data = await res.json();
 
         if (data.preguntas.length === 0) {
@@ -970,7 +976,7 @@ async function guardarPregunta() {
 
         const res = await fetch(url, {
             method: metodo,
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify(datos)
         });
         const data = await res.json();
@@ -990,7 +996,7 @@ async function eliminarPregunta(id) {
     if (!confirm('¿Seguro que deseas eliminar esta pregunta? Esta acción no se puede deshacer.')) return;
 
     try {
-        const res = await fetch(`/api/preguntas/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/preguntas/${id}`, { method: 'DELETE', headers: authHeaders() });
         const data = await res.json();
         if (data.exito) cargarPreguntas();
         else alert('Error al eliminar la pregunta');
@@ -1008,7 +1014,7 @@ async function cargarEstudiantes() {
     contenedor.innerHTML = '<div class="cargando"><div class="spinner"></div><p>Cargando...</p></div>';
 
     try {
-        const res = await fetch('/api/estudiantes');
+        const res = await fetch('/api/estudiantes', { headers: authHeaders() });
         const data = await res.json();
 
         if (data.estudiantes.length === 0) {
@@ -1084,7 +1090,7 @@ async function registrarEstudiante() {
     try {
         const res = await fetch('/api/estudiantes/registro', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({ documento, nombre, grado, contrasena })
         });
         const data = await res.json();
@@ -1110,7 +1116,7 @@ async function eliminarEstudiante(id, nombre) {
     if (!confirm(`¿Eliminar al estudiante "${nombre}"? Se borrarán también sus simulacros.`)) return;
 
     try {
-        const res = await fetch(`/api/estudiantes/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/estudiantes/${id}`, { method: 'DELETE', headers: authHeaders() });
         const data = await res.json();
         if (data.exito) cargarEstudiantes();
         else alert('Error al eliminar el estudiante');

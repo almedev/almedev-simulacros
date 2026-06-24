@@ -16,27 +16,16 @@
 
 <div class="contenedor">
 
-    <!-- ===================== SECCIÓN 1: Ingresar documento ===================== -->
+    <!-- ===================== SECCIÓN 1: Login ===================== -->
     <div id="sec-documento" class="seccion activa">
         <button class="btn-volver" onclick="window.location.href='index.html'">← Inicio</button>
         <div class="tarjeta">
-            <h2>¿Cuál es tu documento?</h2>
+            <h2>Ingresar</h2>
             <div id="alerta-documento" class="alerta"></div>
             <div class="grupo-campo">
                 <label for="input-documento">Número de documento</label>
                 <input type="number" id="input-documento" placeholder="Ej: 1234567890" inputmode="numeric">
             </div>
-            <button class="btn btn-primario" onclick="verificarDocumento()">Continuar</button>
-        </div>
-    </div>
-
-    <!-- ===================== SECCIÓN 2: Login (estudiante ya registrado) ===================== -->
-    <div id="sec-login" class="seccion">
-        <button class="btn-volver" onclick="mostrarSeccion('sec-documento')">← Atrás</button>
-        <div class="tarjeta">
-            <h2>Bienvenido de nuevo</h2>
-            <p style="color:var(--gris); margin-bottom:16px;" id="nombre-login"></p>
-            <div id="alerta-login" class="alerta"></div>
             <div class="grupo-campo">
                 <label for="input-contrasena-login">Contraseña</label>
                 <input type="password" id="input-contrasena-login" placeholder="Tu contraseña">
@@ -166,10 +155,10 @@
     <div style="
         background:#fff; border-radius:16px; padding:36px 28px;
         max-width:380px; width:90%; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.4);">
-        <div style="font-size:3rem; margin-bottom:12px;">⚠️</div>
-        <h2 style="color:#C62828; margin-bottom:8px;">¡Atención!</h2>
+        <div style="font-size:3rem; margin-bottom:12px;">🚨</div>
+        <h2 style="color:#C62828; margin-bottom:8px;">¡La trampa está prohibida!</h2>
         <p style="color:#424242; margin-bottom:6px;">
-            Saliste del simulacro. <strong>No está permitido cambiar de pestaña</strong> durante la prueba.
+            El <strong>Profe Aldana</strong> te está monitoreando. Cambiar de pestaña durante la prueba está estrictamente prohibido.
         </p>
         <p id="modal-trampa-contador" style="color:#9E9E9E; font-size:0.85rem; margin-bottom:20px;"></p>
         <button class="btn btn-primario" onclick="cerrarModalTrampa()">Entendido, continuar</button>
@@ -227,56 +216,32 @@ function formatearFecha(fechaStr) {
 // FLUJO DE AUTENTICACIÓN
 // ============================================================
 
-// Paso 1: verifica si el documento existe en la base de datos
-async function verificarDocumento() {
-    const documento = document.getElementById('input-documento').value.trim();
-    if (!documento) {
-        mostrarAlerta('alerta-documento', 'Ingresa tu número de documento', 'error');
-        return;
-    }
-    ocultarAlerta('alerta-documento');
-    estado.documentoIngresado = documento;
-
-    try {
-        const res = await fetch(`/api/auth/existe/${documento}`);
-        const data = await res.json();
-
-        if (data.existe) {
-            // Si está registrado, mostramos el formulario de login
-            document.getElementById('nombre-login').textContent = `Documento: ${documento}`;
-            mostrarSeccion('sec-login');
-        } else {
-            // Si no existe, informamos que debe contactar al docente
-            mostrarAlerta('alerta-documento', 'Este documento no está registrado. Comunícate con tu docente para que te inscriba.', 'error');
-        }
-    } catch (e) {
-        mostrarAlerta('alerta-documento', 'Error de conexión. Verifica que el servidor esté corriendo.', 'error');
-    }
-}
-
-// Paso 2a: login con contraseña
 async function iniciarSesion() {
+    const documento = document.getElementById('input-documento').value.trim();
     const contrasena = document.getElementById('input-contrasena-login').value;
-    if (!contrasena) {
-        mostrarAlerta('alerta-login', 'Ingresa tu contraseña', 'error');
+
+    if (!documento || !contrasena) {
+        mostrarAlerta('alerta-documento', 'Ingresa tu documento y contraseña', 'error');
         return;
     }
+
+    estado.documentoIngresado = documento;
 
     try {
         const res = await fetch('/api/auth/estudiante', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ documento: estado.documentoIngresado, contrasena })
+            body: JSON.stringify({ documento, contrasena })
         });
         const data = await res.json();
 
         if (data.exito) {
             entrarAlPanel(data.estudiante);
         } else {
-            mostrarAlerta('alerta-login', data.mensaje, 'error');
+            mostrarAlerta('alerta-documento', 'Documento o contraseña incorrectos', 'error');
         }
     } catch (e) {
-        mostrarAlerta('alerta-login', 'Error de conexión', 'error');
+        mostrarAlerta('alerta-documento', 'Error de conexión', 'error');
     }
 }
 
@@ -394,6 +359,7 @@ async function comenzarSimulacro() {
         estado.respuestas = {};
         estado.preguntaActual = 0;
         estado.gradoRepaso = gradoRepaso;
+        contadorSalidas = 0;
 
         mostrarSeccion('sec-simulacro');
         document.getElementById('modulo-texto-simulacro').textContent = estado.moduloSeleccionado;
@@ -672,7 +638,7 @@ document.addEventListener('visibilitychange', () => {
         const restantes = 3 - contadorSalidas;
         const modal = document.getElementById('modal-trampa');
         document.getElementById('modal-trampa-contador').textContent =
-            `Salidas detectadas: ${contadorSalidas} de 3. ${restantes === 1 ? '⚠️ Una más y la prueba se enviará automáticamente.' : `Te quedan ${restantes} advertencias.`}`;
+            `Llevas ${contadorSalidas} de 3 salidas. ${restantes === 1 ? '⚠️ ¡Una más y la prueba se enviará automáticamente!' : `Aún te quedan ${restantes} oportunidades antes del envío automático.`}`;
         modal.style.display = 'flex';
     }
 });

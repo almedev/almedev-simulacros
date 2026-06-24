@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const authDocente = require('../middleware/authDocente');
 
 // GET /api/modulos?grado=Grado%206 — lista módulos, filtrando por grado si se indica
 router.get('/', async (req, res) => {
@@ -17,7 +18,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/modulos — crea un módulo nuevo para un grado
-router.post('/', async (req, res) => {
+router.post('/', authDocente, async (req, res) => {
     const { grado, nombre } = req.body;
     if (!grado || !nombre || !nombre.trim()) {
         return res.status(400).json({ exito: false, mensaje: 'Grado y nombre son obligatorios' });
@@ -35,7 +36,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/modulos/:id — actualiza grado y/o nombre de un módulo
-router.put('/:id', async (req, res) => {
+router.put('/:id', authDocente, async (req, res) => {
     const { grado, nombre } = req.body;
     if (!grado || !nombre || !nombre.trim()) {
         return res.status(400).json({ exito: false, mensaje: 'Grado y nombre son obligatorios' });
@@ -53,7 +54,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/modulos/:id — elimina un módulo
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authDocente, async (req, res) => {
     try {
         await db.eliminarModulo(req.params.id);
         res.json({ exito: true, mensaje: 'Módulo eliminado' });

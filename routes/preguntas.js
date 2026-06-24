@@ -4,10 +4,11 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const authDocente = require('../middleware/authDocente');
 
 // GET /api/preguntas
 // Obtiene preguntas filtrando por grado y/o módulo (para el docente)
-router.get('/', async (req, res) => {
+router.get('/', authDocente, async (req, res) => {
     try {
         const { grado, modulo } = req.query;
         const preguntas = await db.obtenerTodasPreguntas(grado, modulo);
@@ -63,7 +64,7 @@ router.get('/simulacro', async (req, res) => {
 
 // POST /api/preguntas
 // Agrega una nueva pregunta al banco (solo docente)
-router.post('/', async (req, res) => {
+router.post('/', authDocente, async (req, res) => {
     const { grado, modulo, enunciado, opcion_a, opcion_b, opcion_c, opcion_d, respuesta_correcta, justificacion } = req.body;
 
     if (!grado || !modulo || !enunciado || !opcion_a || !opcion_b || !opcion_c || !opcion_d || !respuesta_correcta) {
@@ -85,7 +86,7 @@ router.post('/', async (req, res) => {
 
 // PUT /api/preguntas/:id
 // Actualiza una pregunta existente (solo docente)
-router.put('/:id', async (req, res) => {
+router.put('/:id', authDocente, async (req, res) => {
     const { grado, modulo, enunciado, opcion_a, opcion_b, opcion_c, opcion_d, respuesta_correcta, justificacion } = req.body;
 
     if (!grado || !modulo || !enunciado || !opcion_a || !opcion_b || !opcion_c || !opcion_d || !respuesta_correcta) {
@@ -103,7 +104,7 @@ router.put('/:id', async (req, res) => {
 
 // DELETE /api/preguntas/:id
 // Elimina una pregunta del banco (solo docente)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authDocente, async (req, res) => {
     try {
         await db.eliminarPregunta(req.params.id);
         res.json({ exito: true, mensaje: 'Pregunta eliminada' });

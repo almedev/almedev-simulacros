@@ -3,6 +3,7 @@
 
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 const db = require('../database');
 
 // POST /api/auth/estudiante
@@ -35,17 +36,6 @@ router.post('/estudiante', async (req, res) => {
     }
 });
 
-// GET /api/auth/existe/:documento
-// Verifica si un documento ya está registrado (para saber si mostrar login o registro)
-router.get('/existe/:documento', async (req, res) => {
-    try {
-        const estudiante = await db.buscarEstudiantePorDocumento(req.params.documento);
-        res.json({ existe: !!estudiante });
-    } catch (error) {
-        console.error('Error verificando documento:', error);
-        res.status(500).json({ exito: false, mensaje: 'Error interno del servidor' });
-    }
-});
 
 // POST /api/auth/docente
 // El docente ingresa con usuario y contraseña
@@ -61,7 +51,8 @@ router.post('/docente', async (req, res) => {
         if (!docente) {
             return res.status(401).json({ exito: false, mensaje: 'Usuario o contraseña incorrectos' });
         }
-        res.json({ exito: true, mensaje: 'Bienvenido docente' });
+        const token = jwt.sign({ rol: 'docente' }, process.env.JWT_SECRET, { expiresIn: '8h' });
+        res.json({ exito: true, token });
     } catch (error) {
         console.error('Error en login docente:', error);
         res.status(500).json({ exito: false, mensaje: 'Error interno del servidor' });

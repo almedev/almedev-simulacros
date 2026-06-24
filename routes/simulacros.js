@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const authDocente = require('../middleware/authDocente');
 
 // POST /api/simulacros/guardar
 // Guarda un simulacro con esCorrecta ya calculado por el cliente (uso interno)
@@ -21,9 +22,11 @@ router.post('/guardar', async (req, res) => {
 
         const simulacroId = await db.guardarSimulacro(estudianteId, grado, modulo, total, correctas, puntaje);
 
-        for (const r of respuestas) {
-            await db.guardarRespuesta(simulacroId, r.preguntaId, r.respuestaDada, r.esCorrecta ? 1 : 0);
-        }
+        await db.guardarRespuestas(simulacroId, respuestas.map(r => ({
+            preguntaId: r.preguntaId,
+            respuestaDada: r.respuestaDada,
+            esCorrecta: r.esCorrecta ? 1 : 0
+        })));
 
         res.json({ exito: true, simulacroId, puntaje, correctas, total });
     } catch (error) {
@@ -78,9 +81,11 @@ router.post('/guardar-validado', async (req, res) => {
 
         const simulacroId = await db.guardarSimulacro(estudianteId, grado, modulo, total, correctas, puntaje);
 
-        for (const r of respuestasValidadas) {
-            await db.guardarRespuesta(simulacroId, r.preguntaId, r.respuestaDada || '', r.esCorrecta ? 1 : 0);
-        }
+        await db.guardarRespuestas(simulacroId, respuestasValidadas.map(r => ({
+            preguntaId: r.preguntaId,
+            respuestaDada: r.respuestaDada || '',
+            esCorrecta: r.esCorrecta ? 1 : 0
+        })));
 
         res.json({ exito: true, simulacroId, puntaje, correctas, total });
     } catch (error) {
@@ -115,7 +120,7 @@ router.get('/revision/:simulacroId', async (req, res) => {
 
 // GET /api/simulacros/estadisticas
 // Devuelve estadísticas generales de todos los estudiantes (para el docente)
-router.get('/estadisticas', async (req, res) => {
+router.get('/estadisticas', authDocente, async (req, res) => {
     try {
         const estadisticas = await db.obtenerEstadisticasGenerales();
         res.json({ exito: true, estadisticas });
@@ -162,7 +167,7 @@ router.get('/intentos-grado', async (req, res) => {
 
 // PUT /api/simulacros/intentos-grado
 // El docente define cuantas veces puede hacerse cada modulo en un grado completo
-router.put('/intentos-grado', async (req, res) => {
+router.put('/intentos-grado', authDocente, async (req, res) => {
     const { grado, intentos } = req.body;
     const intentosNumero = parseInt(intentos, 10);
 

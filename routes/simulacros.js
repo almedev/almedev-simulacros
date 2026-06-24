@@ -5,44 +5,21 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 const authDocente = require('../middleware/authDocente');
+const authEstudiante = require('../middleware/authEstudiante');
 
-// POST /api/simulacros/guardar
-// Guarda un simulacro con esCorrecta ya calculado por el cliente (uso interno)
-router.post('/guardar', async (req, res) => {
-    const { estudianteId, grado, modulo, respuestas } = req.body;
-
-    if (!estudianteId || !grado || !modulo || !respuestas || !Array.isArray(respuestas)) {
-        return res.status(400).json({ exito: false, mensaje: 'Datos incompletos' });
-    }
-
-    try {
-        const correctas = respuestas.filter(r => r.esCorrecta).length;
-        const total = respuestas.length;
-        const puntaje = total > 0 ? Math.round((correctas / total) * 100) : 0;
-
-        const simulacroId = await db.guardarSimulacro(estudianteId, grado, modulo, total, correctas, puntaje);
-
-        await db.guardarRespuestas(simulacroId, respuestas.map(r => ({
-            preguntaId: r.preguntaId,
-            respuestaDada: r.respuestaDada,
-            esCorrecta: r.esCorrecta ? 1 : 0
-        })));
-
-        res.json({ exito: true, simulacroId, puntaje, correctas, total });
-    } catch (error) {
-        console.error('Error guardando simulacro:', error);
-        res.status(500).json({ exito: false, mensaje: 'Error interno del servidor' });
-    }
-});
 
 // POST /api/simulacros/guardar-validado
 // Guarda un simulacro validando las respuestas contra la base de datos
 // El frontend nunca recibe las respuestas correctas, así que las validamos aquí
-router.post('/guardar-validado', async (req, res) => {
+router.post('/guardar-validado', authEstudiante, async (req, res) => {
     const { estudianteId, grado, modulo, respuestas } = req.body;
 
     if (!estudianteId || !grado || !modulo || !respuestas || !Array.isArray(respuestas)) {
         return res.status(400).json({ exito: false, mensaje: 'Datos incompletos' });
+    }
+
+    if (parseInt(estudianteId) !== req.estudiante.id) {
+        return res.status(403).json({ exito: false, mensaje: 'No puedes enviar simulacros en nombre de otro estudiante' });
     }
 
     try {
@@ -79,16 +56,20 @@ router.post('/guardar-validado', async (req, res) => {
         const total = respuestas.length;
         const puntaje = total > 0 ? Math.round((correctas / total) * 100) : 0;
 
-        const simulacroId = await db.guardarSimulacro(estudianteId, grado, modulo, total, correctas, puntaje);
-
-        await db.guardarRespuestas(simulacroId, respuestasValidadas.map(r => ({
-            preguntaId: r.preguntaId,
-            respuestaDada: r.respuestaDada || '',
-            esCorrecta: r.esCorrecta ? 1 : 0
-        })));
+        const simulacroId = await db.guardarSimulacroCompleto(
+            estudianteId, grado, modulo, total, correctas, puntaje,
+            respuestasValidadas.map(r => ({
+                preguntaId: r.preguntaId,
+                respuestaDada: r.respuestaDada || '',
+                esCorrecta: r.esCorrecta ? 1 : 0
+            }))
+        );
 
         res.json({ exito: true, simulacroId, puntaje, correctas, total });
     } catch (error) {
+        if (error.code === 'INTENTOS_AGOTADOS') {
+            return res.status(409).json({ exito: false, mensaje: error.message });
+        }
         console.error('Error guardando simulacro validado:', error);
         res.status(500).json({ exito: false, mensaje: 'Error interno del servidor' });
     }
@@ -96,7 +77,10 @@ router.post('/guardar-validado', async (req, res) => {
 
 // GET /api/simulacros/historial/:estudianteId
 // Devuelve el historial de simulacros de un estudiante
-router.get('/historial/:estudianteId', async (req, res) => {
+router.get('/historial/:estudianteId', authEstudiante, async (req, res) => {
+    if (parseInt(req.params.estudianteId) !== req.estudiante.id) {
+        return res.status(403).json({ exito: false, mensaje: 'No puedes ver el historial de otro estudiante' });
+    }
     try {
         const historial = await db.obtenerHistorialEstudiante(req.params.estudianteId);
         res.json({ exito: true, historial });
@@ -108,8 +92,12 @@ router.get('/historial/:estudianteId', async (req, res) => {
 
 // GET /api/simulacros/revision/:simulacroId
 // Devuelve las respuestas detalladas de un simulacro para revisión
-router.get('/revision/:simulacroId', async (req, res) => {
+router.get('/revision/:simulacroId', authEstudiante, async (req, res) => {
     try {
+        const simulacro = await db.obtenerSimulacroPorId(req.params.simulacroId);
+        if (!simulacro || simulacro.estudiante_id !== req.estudiante.id) {
+            return res.status(403).json({ exito: false, mensaje: 'No puedes ver la revisión de otro estudiante' });
+        }
         const respuestas = await db.obtenerRespuestasSimulacro(req.params.simulacroId);
         res.json({ exito: true, respuestas });
     } catch (error) {
@@ -133,10 +121,13 @@ router.get('/estadisticas', authDocente, async (req, res) => {
 // GET /api/simulacros/estado-intentos?estudianteId=&grado=
 // Devuelve, para cada módulo del grado, cuántos intentos usó el estudiante,
 // cuántos tiene permitidos y si puede volver a intentarlo
-router.get('/estado-intentos', async (req, res) => {
+router.get('/estado-intentos', authEstudiante, async (req, res) => {
     const { estudianteId, grado } = req.query;
     if (!estudianteId || !grado) {
         return res.status(400).json({ exito: false, mensaje: 'Estudiante y grado son obligatorios' });
+    }
+    if (parseInt(estudianteId) !== req.estudiante.id) {
+        return res.status(403).json({ exito: false, mensaje: 'No puedes ver los intentos de otro estudiante' });
     }
     try {
         const estado = await db.obtenerEstadoIntentos(estudianteId, grado);

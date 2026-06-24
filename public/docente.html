@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Almedev - Docente</title>
     <link rel="stylesheet" href="css/styles.css">
-    <!-- SheetJS: librería para leer archivos Excel (.xlsx, .xls) -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <!-- SheetJS: librería para leer/escribir archivos Excel (.xlsx, .xls) — servida localmente -->
+    <script src="js/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -392,10 +392,16 @@
 // ============================================================
 // ESTADO Y VARIABLES GLOBALES
 // ============================================================
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 let sesionActiva = false;
-let intervalPolling = null;       // Referencia al polling de estadísticas
-let todasEstadisticas = [];       // Cache de estadísticas para el filtro
-let datosActuales = [];           // Datos filtrados actualmente visibles (para exportar)
+let intervalPolling = null;
+let todasEstadisticas = [];
+let datosActuales = [];
+let preguntasCache = {};
 
 function authHeaders(extra = {}) {
     const token = sessionStorage.getItem('docenteToken');
@@ -567,9 +573,9 @@ function filtrarEstadisticas() {
         const claseBadge = s.puntaje >= 80 ? 'alto' : (s.puntaje >= 60 ? 'medio' : 'bajo');
         return `
             <tr>
-                <td>${s.nombre} ${esNuevo ? '<span class="badge-nuevo">Nuevo</span>' : ''}</td>
-                <td>${s.grado}</td>
-                <td>${s.modulo}<br><small style="color:var(--gris);">${s.grado_modulo || s.grado} · Intento ${numIntento}</small></td>
+                <td>${escapeHtml(s.nombre)} ${esNuevo ? '<span class="badge-nuevo">Nuevo</span>' : ''}</td>
+                <td>${escapeHtml(s.grado)}</td>
+                <td>${escapeHtml(s.modulo)}<br><small style="color:var(--gris);">${escapeHtml(s.grado_modulo || s.grado)} · Intento ${numIntento}</small></td>
                 <td>${s.correctas}/${s.total_preguntas}</td>
                 <td><span class="badge-puntaje ${claseBadge}">${s.puntaje}%</span></td>
                 <td>${formatearFecha(s.fecha)}</td>
@@ -750,11 +756,18 @@ async function cargarModulos() {
         }
         lista.innerHTML = modulos.map(m => `
             <div style="display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #F0F0F0;">
-                <span style="flex:1; font-size:0.95rem;">${m.nombre}</span>
-                <button class="btn btn-secundario btn-pequeño" onclick="iniciarEdicionModulo(${m.id}, '${m.nombre.replace(/'/g, "\\'")}')">Editar</button>
-                <button class="btn btn-peligro btn-pequeño" onclick="borrarModulo(${m.id}, '${m.nombre.replace(/'/g, "\\'")}')">Eliminar</button>
+                <span style="flex:1; font-size:0.95rem;">${escapeHtml(m.nombre)}</span>
+                <button class="btn btn-secundario btn-pequeño" data-action="editar-modulo" data-id="${m.id}" data-nombre="${escapeHtml(m.nombre)}">Editar</button>
+                <button class="btn btn-peligro btn-pequeño" data-action="borrar-modulo" data-id="${m.id}" data-nombre="${escapeHtml(m.nombre)}">Eliminar</button>
             </div>
         `).join('');
+        lista.querySelectorAll('button[data-action]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const { action, id, nombre } = btn.dataset;
+                if (action === 'editar-modulo') iniciarEdicionModulo(id, nombre);
+                if (action === 'borrar-modulo') borrarModulo(id, nombre);
+            });
+        });
     } catch (e) {
         document.getElementById('lista-modulos').innerHTML = '<p style="color:var(--rojo);">Error al cargar módulos.</p>';
     }
@@ -771,7 +784,7 @@ async function cargarModulosFiltro() {
         const res = await fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`, { headers: authHeaders() });
         const data = await res.json();
         (data.modulos || []).forEach(m => {
-            filtro.innerHTML += `<option value="${m.nombre}">${m.nombre}</option>`;
+            filtro.innerHTML += `<option value="${escapeHtml(m.nombre)}">${escapeHtml(m.nombre)}</option>`;
         });
     } catch (e) { /* Si falla, el filtro queda solo con "Todos" */ }
 }
@@ -878,24 +891,34 @@ async function cargarPreguntas() {
             return;
         }
 
+        preguntasCache = {};
+        data.preguntas.forEach(p => { preguntasCache[p.id] = p; });
+
         contenedor.innerHTML = data.preguntas.map(p => `
             <div style="border:1px solid #E0E0E0; border-radius:8px; padding:12px; margin-bottom:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; flex-wrap:wrap;">
                     <div style="flex:1;">
-                        <span style="font-size:0.75rem; color:var(--azul); font-weight:600;">${p.grado} · ${p.modulo}</span>
-                        <p style="margin-top:4px; font-size:0.9rem; font-weight:600;">${p.enunciado}</p>
+                        <span style="font-size:0.75rem; color:var(--azul); font-weight:600;">${escapeHtml(p.grado)} · ${escapeHtml(p.modulo)}</span>
+                        <p style="margin-top:4px; font-size:0.9rem; font-weight:600;">${escapeHtml(p.enunciado)}</p>
                         <p style="font-size:0.8rem; color:var(--gris); margin-top:4px;">
-                            A) ${p.opcion_a} &nbsp; B) ${p.opcion_b} &nbsp; C) ${p.opcion_c} &nbsp; D) ${p.opcion_d}
+                            A) ${escapeHtml(p.opcion_a)} &nbsp; B) ${escapeHtml(p.opcion_b)} &nbsp; C) ${escapeHtml(p.opcion_c)} &nbsp; D) ${escapeHtml(p.opcion_d)}
                         </p>
-                        <p style="font-size:0.8rem; color:var(--verde); margin-top:4px;">✓ Correcta: ${p.respuesta_correcta}</p>
+                        <p style="font-size:0.8rem; color:var(--verde); margin-top:4px;">✓ Correcta: ${escapeHtml(p.respuesta_correcta)}</p>
                     </div>
                     <div style="display:flex; gap:6px; flex-shrink:0;">
-                        <button class="btn btn-secundario btn-pequeño" onclick='editarPregunta(${JSON.stringify(p)})'>Editar</button>
-                        <button class="btn btn-peligro btn-pequeño" onclick="eliminarPregunta(${p.id})">Borrar</button>
+                        <button class="btn btn-secundario btn-pequeño" data-action="editar-preg" data-id="${p.id}">Editar</button>
+                        <button class="btn btn-peligro btn-pequeño" data-action="borrar-preg" data-id="${p.id}">Borrar</button>
                     </div>
                 </div>
             </div>
         `).join('');
+        contenedor.querySelectorAll('button[data-action]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const { action, id } = btn.dataset;
+                if (action === 'editar-preg') editarPregunta(preguntasCache[id]);
+                if (action === 'borrar-preg') eliminarPregunta(id);
+            });
+        });
     } catch (e) {
         contenedor.innerHTML = '<p style="color:var(--rojo);">Error al cargar preguntas.</p>';
     }
@@ -1024,12 +1047,12 @@ async function cargarEstudiantes() {
 
         const filas = data.estudiantes.map(e => `
             <tr>
-                <td>${e.nombre}</td>
-                <td>${e.documento}</td>
-                <td>${e.grado}</td>
+                <td>${escapeHtml(e.nombre)}</td>
+                <td>${escapeHtml(String(e.documento))}</td>
+                <td>${escapeHtml(e.grado)}</td>
                 <td>
                     <span id="pwd-${e.id}" style="filter:blur(4px); user-select:none; font-family:monospace;">
-                        ${e.contrasena_plana || '(sin registro)'}
+                        ${escapeHtml(e.contrasena_plana || '(sin registro)')}
                     </span>
                     <button onclick="verContrasena(${e.id})" title="Mostrar/ocultar"
                         style="background:none; border:none; cursor:pointer; font-size:1rem; margin-left:4px;">
@@ -1038,7 +1061,7 @@ async function cargarEstudiantes() {
                 </td>
                 <td>${new Date(e.fecha_registro).toLocaleDateString('es-CO')}</td>
                 <td>
-                    <button class="btn btn-peligro btn-pequeño" onclick="eliminarEstudiante(${e.id}, '${e.nombre}')">
+                    <button class="btn btn-peligro btn-pequeño" data-action="borrar-est" data-id="${e.id}" data-nombre="${escapeHtml(e.nombre)}">
                         Eliminar
                     </button>
                 </td>
@@ -1063,6 +1086,9 @@ async function cargarEstudiantes() {
                 </table>
             </div>
         `;
+        contenedor.querySelectorAll('button[data-action="borrar-est"]').forEach(btn => {
+            btn.addEventListener('click', () => eliminarEstudiante(btn.dataset.id, btn.dataset.nombre));
+        });
     } catch (e) {
         contenedor.innerHTML = '<p style="color:var(--rojo);">Error al cargar estudiantes.</p>';
     }
@@ -1203,68 +1229,67 @@ function mostrarPreviewExcel() {
     document.getElementById('preview-excel').scrollIntoView({ behavior: 'smooth' });
 }
 
-// Importa todos los estudiantes uno por uno y muestra el resultado en la tabla
+// Importa todos los estudiantes en una sola petición al servidor
 async function importarEstudiantes() {
     const btn = document.getElementById('btn-importar');
     btn.disabled = true;
     btn.textContent = 'Importando...';
 
-    // Leemos el grado aquí, justo antes de importar
     const grado = document.getElementById('excel-grado-defecto').value;
 
-    let exitosos = 0;
-    let fallidos = 0;
+    try {
+        const res = await fetch('/api/estudiantes/registro-lote', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+                grado,
+                estudiantes: estudiantesExcel.map(e => ({
+                    documento: e.documento,
+                    nombre: e.nombre,
+                    contrasena: e.contrasena
+                }))
+            })
+        });
+        const data = await res.json();
 
-    for (let i = 0; i < estudiantesExcel.length; i++) {
-        const est = estudiantesExcel[i];
-        const celdaEstado = document.getElementById(`estado-excel-${i}`);
-
-        // Validación básica antes de enviar
-        if (!est.documento || !est.nombre || !est.contrasena) {
-            celdaEstado.innerHTML = '<span style="color:var(--rojo);">✗ Datos incompletos</span>';
-            fallidos++;
-            continue;
+        if (!data.exito) {
+            mostrarAlerta('alerta-excel', data.mensaje || 'Error al importar', 'error');
+            return;
         }
 
+        // Indexar resultados por documento para actualizar cada fila
+        const porDocumento = {};
+        for (const r of data.resultados) porDocumento[String(r.documento)] = r;
 
-        try {
-            const res = await fetch('/api/estudiantes/registro', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    documento: est.documento,
-                    nombre: est.nombre,
-                    grado: grado,
-                    contrasena: est.contrasena
-                })
-            });
-            const data = await res.json();
+        let exitosos = 0;
+        let fallidos = 0;
 
-            if (data.exito) {
+        estudiantesExcel.forEach((est, i) => {
+            const celdaEstado = document.getElementById(`estado-excel-${i}`);
+            const r = porDocumento[String(est.documento)];
+            if (!r) return;
+            if (r.exito) {
                 celdaEstado.innerHTML = '<span style="color:var(--verde);">✓ Importado</span>';
                 exitosos++;
             } else {
-                celdaEstado.innerHTML = `<span style="color:var(--rojo);">✗ ${data.mensaje}</span>`;
+                celdaEstado.innerHTML = `<span style="color:var(--rojo);">✗ ${escapeHtml(r.mensaje)}</span>`;
                 fallidos++;
             }
-        } catch (e) {
-            celdaEstado.innerHTML = '<span style="color:var(--rojo);">✗ Error de red</span>';
-            fallidos++;
-        }
+        });
+
+        const tipo = fallidos === 0 ? 'exito' : (exitosos === 0 ? 'error' : 'info');
+        mostrarAlerta('alerta-excel',
+            `Importación terminada: ${exitosos} registrado(s) correctamente, ${fallidos} con error.`,
+            tipo
+        );
+
+        if (exitosos > 0) cargarEstudiantes();
+    } catch (e) {
+        mostrarAlerta('alerta-excel', 'Error de red al importar. Intenta de nuevo.', 'error');
+    } finally {
+        btn.textContent = 'Importar todos';
+        btn.disabled = false;
     }
-
-    // Mostramos el resumen final
-    const tipo = fallidos === 0 ? 'exito' : (exitosos === 0 ? 'error' : 'info');
-    mostrarAlerta('alerta-excel',
-        `Importación terminada: ${exitosos} registrado(s) correctamente, ${fallidos} con error.`,
-        tipo
-    );
-
-    btn.textContent = 'Importar todos';
-    btn.disabled = false;
-
-    // Recargamos la lista de estudiantes
-    if (exitosos > 0) cargarEstudiantes();
 }
 
 // Limpia la vista previa y el input de archivo

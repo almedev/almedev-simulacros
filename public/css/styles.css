@@ -369,6 +369,24 @@ footer.pie-pagina {
     transition: width 0.3s ease;
 }
 
+/* ===== TEMPORIZADOR ===== */
+.temporizador {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--azul);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.03em;
+}
+
+.temporizador.urgente {
+    color: var(--rojo);
+    animation: parpadeo 1s step-start infinite;
+}
+
+@keyframes parpadeo {
+    50% { opacity: 0.4; }
+}
+
 /* ===== PREGUNTA DEL SIMULACRO ===== */
 .enunciado-pregunta {
     font-size: 1.05rem;

@@ -1,13 +1,31 @@
 const { db } = require('./conexion');
 
 async function obtenerPreguntasSimulacro(grado, modulo, cantidad) {
-    // mysql2 falla al pasar LIMIT como parámetro (?) en execute(); como "cantidad"
-    // es un número validado con parseInt en la ruta, es seguro interpolarlo directo.
-    const limite = parseInt(cantidad, 10) || 10;
-    const [rows] = await db.execute(
-        `SELECT * FROM preguntas WHERE grado = ? AND modulo = ? ORDER BY RAND() LIMIT ${limite}`,
+    // 1. Traer solo IDs — usa idx_preg_grado_mod, sin leer filas completas
+    const [idRows] = await db.execute(
+        'SELECT id FROM preguntas WHERE grado = ? AND modulo = ?',
         [grado, modulo]
     );
+    if (idRows.length === 0) return [];
+
+    // 2. Fisher-Yates en memoria — O(n), sin carga en MySQL
+    const ids = idRows.map(r => r.id);
+    for (let i = ids.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+
+    // 3. Traer solo las filas seleccionadas por PK
+    const seleccionados = ids.slice(0, Math.min(parseInt(cantidad, 10) || 10, ids.length));
+    const placeholders = seleccionados.map(() => '?').join(',');
+    const [rows] = await db.execute(
+        `SELECT * FROM preguntas WHERE id IN (${placeholders})`,
+        seleccionados
+    );
+
+    // 4. Restaurar el orden barajado (IN no garantiza orden)
+    const orden = new Map(seleccionados.map((id, i) => [id, i]));
+    rows.sort((a, b) => orden.get(a.id) - orden.get(b.id));
     return rows;
 }
 

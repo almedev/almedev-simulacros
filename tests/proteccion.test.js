@@ -18,7 +18,7 @@ jest.mock('../database', () => ({
 const db = require('../database');
 
 function tokenValido() {
-    return jwt.sign({ rol: 'docente' }, process.env.JWT_SECRET || 'almedev_jwt_secret_2025_profe_aldana', { expiresIn: '1h' });
+    return jwt.sign({ rol: 'docente' }, process.env.JWT_SECRET, { expiresIn: '1h' });
 }
 
 describe('Rutas protegidas — sin token', () => {

@@ -1,24 +1,54 @@
 const { db } = require('./conexion');
 const { obtenerModulos } = require('./modulos');
 
-async function guardarSimulacro(estudianteId, grado, modulo, total, correctas, puntaje) {
-    const fecha = new Date();
-    const [result] = await db.execute(
-        `INSERT INTO simulacros (estudiante_id, grado, modulo, fecha, total_preguntas, correctas, puntaje)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [estudianteId, grado, modulo, fecha, total, correctas, puntaje]
-    );
-    return result.insertId;
-}
+async function guardarSimulacroCompleto(estudianteId, grado, modulo, total, correctas, puntaje, respuestas) {
+    const conn = await db.getConnection();
+    try {
+        await conn.beginTransaction();
 
-async function guardarRespuestas(simulacroId, respuestas) {
-    if (!respuestas.length) return;
-    const placeholders = respuestas.map(() => '(?, ?, ?, ?)').join(', ');
-    const valores = respuestas.flatMap(r => [simulacroId, r.preguntaId, r.respuestaDada, r.esCorrecta]);
-    await db.execute(
-        `INSERT INTO respuestas (simulacro_id, pregunta_id, respuesta_dada, es_correcta) VALUES ${placeholders}`,
-        valores
-    );
+        // Check atómico: bloquea las filas existentes + el gap para prevenir inserciones concurrentes
+        const [[{ usados }]] = await conn.execute(
+            `SELECT COUNT(*) as usados FROM simulacros
+             WHERE estudiante_id = ? AND grado = ? AND modulo = ? FOR UPDATE`,
+            [estudianteId, grado, modulo]
+        );
+        const [[cfg]] = await conn.execute(
+            'SELECT intentos_permitidos FROM configuracion_grados WHERE grado = ?',
+            [grado]
+        );
+        const permitidos = cfg ? cfg.intentos_permitidos : 1;
+
+        if (permitidos !== 0 && usados >= permitidos) {
+            const err = new Error('Ya agotaste los intentos permitidos para este módulo.');
+            err.code = 'INTENTOS_AGOTADOS';
+            throw err;
+        }
+
+        const fecha = new Date();
+        const [result] = await conn.execute(
+            `INSERT INTO simulacros (estudiante_id, grado, modulo, fecha, total_preguntas, correctas, puntaje)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [estudianteId, grado, modulo, fecha, total, correctas, puntaje]
+        );
+        const simulacroId = result.insertId;
+
+        if (respuestas.length > 0) {
+            const placeholders = respuestas.map(() => '(?, ?, ?, ?)').join(', ');
+            const valores = respuestas.flatMap(r => [simulacroId, r.preguntaId, r.respuestaDada, r.esCorrecta]);
+            await conn.execute(
+                `INSERT INTO respuestas (simulacro_id, pregunta_id, respuesta_dada, es_correcta) VALUES ${placeholders}`,
+                valores
+            );
+        }
+
+        await conn.commit();
+        return simulacroId;
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
+    }
 }
 
 async function obtenerIntentosPermitidos(grado) {
@@ -65,6 +95,11 @@ async function obtenerEstadoIntentos(estudianteId, grado) {
     return estado;
 }
 
+async function obtenerSimulacroPorId(simulacroId) {
+    const [rows] = await db.execute('SELECT * FROM simulacros WHERE id = ?', [simulacroId]);
+    return rows[0] || null;
+}
+
 async function obtenerHistorialEstudiante(estudianteId) {
     const [rows] = await db.execute(
         'SELECT * FROM simulacros WHERE estudiante_id = ? ORDER BY fecha DESC',
@@ -99,8 +134,8 @@ async function obtenerRespuestasSimulacro(simulacroId) {
 }
 
 module.exports = {
-    guardarSimulacro,
-    guardarRespuestas,
+    guardarSimulacroCompleto,
+    obtenerSimulacroPorId,
     obtenerIntentosPermitidos,
     establecerIntentosPermitidos,
     puedeIntentarModulo,

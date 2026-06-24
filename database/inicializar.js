@@ -156,9 +156,82 @@ async function inicializar() {
 
     const [docentes] = await db.execute('SELECT COUNT(*) as total FROM usuarios');
     if (docentes[0].total === 0) {
-        const hash = hashContrasena('K7mP4xQ9tR');
-        await db.execute('INSERT INTO usuarios (usuario, contrasena) VALUES (?, ?)', ['1056554610', hash]);
+        const usuario = process.env.DOCENTE_USUARIO;
+        const contrasena = process.env.DOCENTE_CONTRASENA;
+        if (!usuario || !contrasena) {
+            throw new Error('Faltan variables de entorno DOCENTE_USUARIO y DOCENTE_CONTRASENA');
+        }
+        const hash = hashContrasena(contrasena);
+        await db.execute('INSERT INTO usuarios (usuario, contrasena) VALUES (?, ?)', [usuario, hash]);
     }
+
+    // ── Llaves foráneas ─────────────────────────────────────────────────────
+    // Eliminar filas huérfanas que impedirían crear las FK en bases existentes
+    await db.execute(`
+        DELETE s FROM simulacros s
+        LEFT JOIN estudiantes e ON s.estudiante_id = e.id
+        WHERE e.id IS NULL
+    `);
+    await db.execute(`
+        DELETE r FROM respuestas r
+        LEFT JOIN simulacros s ON r.simulacro_id = s.id
+        WHERE s.id IS NULL
+    `);
+    await db.execute(`
+        DELETE r FROM respuestas r
+        LEFT JOIN preguntas p ON r.pregunta_id = p.id
+        WHERE p.id IS NULL
+    `);
+
+    // Agrega un índice solo si no existe (idempotente)
+    const agregarIndice = async (tabla, nombre, sql) => {
+        const [[{ total }]] = await db.execute(
+            `SELECT COUNT(*) as total FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+            [tabla, nombre]
+        );
+        if (total === 0) await db.execute(sql);
+    };
+
+    // preguntas: filtros frecuentes por (grado, modulo)
+    await agregarIndice('preguntas', 'idx_preg_grado_mod',
+        `CREATE INDEX idx_preg_grado_mod ON preguntas (grado, modulo)`);
+
+    // simulacros: historial, conteo de intentos y check con FOR UPDATE
+    await agregarIndice('simulacros', 'idx_sim_est_grado_mod',
+        `CREATE INDEX idx_sim_est_grado_mod ON simulacros (estudiante_id, grado, modulo)`);
+
+    // respuestas: revisión por simulacro y cascada por pregunta
+    await agregarIndice('respuestas', 'idx_resp_simulacro',
+        `CREATE INDEX idx_resp_simulacro ON respuestas (simulacro_id)`);
+    await agregarIndice('respuestas', 'idx_resp_pregunta',
+        `CREATE INDEX idx_resp_pregunta ON respuestas (pregunta_id)`);
+
+    // Agrega una FK solo si no existe (idempotente)
+    const agregarFK = async (tabla, constraint, sql) => {
+        const [[{ total }]] = await db.execute(
+            `SELECT COUNT(*) as total FROM information_schema.TABLE_CONSTRAINTS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?`,
+            [tabla, constraint]
+        );
+        if (total === 0) await db.execute(sql);
+    };
+
+    await agregarFK('simulacros', 'fk_sim_est',
+        `ALTER TABLE simulacros
+         ADD CONSTRAINT fk_sim_est
+         FOREIGN KEY (estudiante_id) REFERENCES estudiantes(id) ON DELETE CASCADE`
+    );
+    await agregarFK('respuestas', 'fk_resp_sim',
+        `ALTER TABLE respuestas
+         ADD CONSTRAINT fk_resp_sim
+         FOREIGN KEY (simulacro_id) REFERENCES simulacros(id) ON DELETE CASCADE`
+    );
+    await agregarFK('respuestas', 'fk_resp_preg',
+        `ALTER TABLE respuestas
+         ADD CONSTRAINT fk_resp_preg
+         FOREIGN KEY (pregunta_id) REFERENCES preguntas(id) ON DELETE CASCADE`
+    );
 
     console.log('Base de datos lista.');
 }

@@ -21,8 +21,10 @@ router.post('/estudiante', async (req, res) => {
             return res.status(401).json({ exito: false, mensaje: 'Documento o contraseña incorrectos' });
         }
         // Devolvemos los datos básicos del estudiante (sin contraseña)
+        const token = jwt.sign({ rol: 'estudiante', id: estudiante.id }, process.env.JWT_SECRET, { expiresIn: '8h' });
         res.json({
             exito: true,
+            token,
             estudiante: {
                 id: estudiante.id,
                 nombre: estudiante.nombre,

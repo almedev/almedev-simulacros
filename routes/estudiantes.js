@@ -41,6 +41,43 @@ router.post('/registro', authDocente, async (req, res) => {
     }
 });
 
+// POST /api/estudiantes/registro-lote
+// Registra múltiples estudiantes en una sola petición (solo docente)
+router.post('/registro-lote', authDocente, async (req, res) => {
+    const { estudiantes, grado } = req.body;
+
+    if (!Array.isArray(estudiantes) || estudiantes.length === 0) {
+        return res.status(400).json({ exito: false, mensaje: 'Se requiere un array de estudiantes' });
+    }
+    if (estudiantes.length > 500) {
+        return res.status(400).json({ exito: false, mensaje: 'Máximo 500 estudiantes por lote' });
+    }
+
+    const gradosValidos = ['Grado 11A', 'Grado 11B'];
+    if (!gradosValidos.includes(grado)) {
+        return res.status(400).json({ exito: false, mensaje: 'Grado no válido' });
+    }
+
+    // Validar campos obligatorios en cada fila
+    const resultados = [];
+    const validos = [];
+    for (const est of estudiantes) {
+        if (!est.documento || !est.nombre || !est.contrasena) {
+            resultados.push({ documento: est.documento || '', exito: false, mensaje: 'Datos incompletos' });
+        } else {
+            validos.push(est);
+        }
+    }
+
+    try {
+        const resultado = await db.registrarEstudiantesLote(validos, grado);
+        res.json({ exito: true, resultados: [...resultados, ...resultado] });
+    } catch (error) {
+        console.error('Error en registro por lote:', error);
+        res.status(500).json({ exito: false, mensaje: 'Error interno del servidor' });
+    }
+});
+
 // GET /api/estudiantes
 // Devuelve la lista completa de estudiantes (solo para el docente)
 router.get('/', authDocente, async (req, res) => {

@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database');
 const authDocente = require('../middleware/authDocente');
+const authEstudiante = require('../middleware/authEstudiante');
 
 // GET /api/preguntas
 // Obtiene preguntas filtrando por grado y/o módulo (para el docente)
@@ -21,11 +22,15 @@ router.get('/', authDocente, async (req, res) => {
 
 // GET /api/preguntas/simulacro
 // Devuelve preguntas aleatorias para un simulacro (para el estudiante)
-router.get('/simulacro', async (req, res) => {
+router.get('/simulacro', authEstudiante, async (req, res) => {
     const { grado, modulo, cantidad, estudianteId } = req.query;
 
     if (!grado || !modulo || !estudianteId) {
         return res.status(400).json({ exito: false, mensaje: 'Grado, módulo y estudiante son obligatorios' });
+    }
+
+    if (parseInt(estudianteId) !== req.estudiante.id) {
+        return res.status(403).json({ exito: false, mensaje: 'No puedes hacer simulacros en nombre de otro estudiante' });
     }
 
     try {
@@ -91,6 +96,10 @@ router.put('/:id', authDocente, async (req, res) => {
 
     if (!grado || !modulo || !enunciado || !opcion_a || !opcion_b || !opcion_c || !opcion_d || !respuesta_correcta) {
         return res.status(400).json({ exito: false, mensaje: 'Faltan campos obligatorios' });
+    }
+
+    if (!['A', 'B', 'C', 'D'].includes(respuesta_correcta.toUpperCase())) {
+        return res.status(400).json({ exito: false, mensaje: 'La respuesta correcta debe ser A, B, C o D' });
     }
 
     try {

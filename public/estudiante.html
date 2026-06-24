@@ -24,7 +24,7 @@
             <div id="alerta-documento" class="alerta"></div>
             <div class="grupo-campo">
                 <label for="input-documento">Número de documento</label>
-                <input type="number" id="input-documento" placeholder="Ej: 1234567890" inputmode="numeric">
+                <input type="text" id="input-documento" placeholder="Ej: 1234567890" inputmode="numeric" pattern="[0-9]*">
             </div>
             <div class="grupo-campo">
                 <label for="input-contrasena-login">Contraseña</label>
@@ -84,7 +84,10 @@
             <div class="barra-progreso-contenedor">
                 <div class="barra-progreso-texto">
                     <span id="progreso-texto">Pregunta 1 de 10</span>
-                    <span id="modulo-texto-simulacro"></span>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <span id="modulo-texto-simulacro" style="font-size:0.8rem;"></span>
+                        <span id="temporizador" class="temporizador">10:00</span>
+                    </div>
                 </div>
                 <div class="barra-progreso">
                     <div class="barra-progreso-relleno" id="barra-relleno" style="width:0%"></div>
@@ -166,6 +169,65 @@
 </div>
 
 <script>
+function escapeHtml(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+const SS_ESTUDIANTE      = 'almedev_estudiante';
+const SS_SIMULACRO       = 'almedev_simulacro';
+const DURACION_SIMULACRO = 10 * 60; // segundos
+
+let tiempoRestante       = 0;
+let intervaloTemporizador = null;
+
+function formatearTiempo(segundos) {
+    const m = String(Math.floor(segundos / 60)).padStart(2, '0');
+    const s = String(segundos % 60).padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+function iniciarTemporizador(segundos) {
+    tiempoRestante = segundos;
+    const el = document.getElementById('temporizador');
+    el.textContent = formatearTiempo(tiempoRestante);
+    el.classList.remove('urgente');
+
+    clearInterval(intervaloTemporizador);
+    intervaloTemporizador = setInterval(() => {
+        tiempoRestante--;
+        el.textContent = formatearTiempo(tiempoRestante);
+
+        if (tiempoRestante <= 120) el.classList.add('urgente');
+
+        if (tiempoRestante <= 0) {
+            clearInterval(intervaloTemporizador);
+            finalizarSimulacro(true);
+        }
+    }, 1000);
+}
+
+function detenerTemporizador() {
+    clearInterval(intervaloTemporizador);
+    intervaloTemporizador = null;
+}
+
+function guardarEstadoSimulacro() {
+    sessionStorage.setItem(SS_SIMULACRO, JSON.stringify({
+        moduloSeleccionado: estado.moduloSeleccionado,
+        gradoRepaso:        estado.gradoRepaso,
+        preguntas:          estado.preguntas,
+        respuestas:         estado.respuestas,
+        preguntaActual:     estado.preguntaActual,
+        contadorSalidas:    contadorSalidas,
+        tiempoRestante:     tiempoRestante
+    }));
+}
+
+function limpiarEstadoSimulacro() {
+    detenerTemporizador();
+    sessionStorage.removeItem(SS_SIMULACRO);
+}
+
 // ============================================================
 // ESTADO GLOBAL DE LA APLICACIÓN
 // ============================================================
@@ -236,6 +298,7 @@ async function iniciarSesion() {
         const data = await res.json();
 
         if (data.exito) {
+            sessionStorage.setItem('estudianteToken', data.token);
             entrarAlPanel(data.estudiante);
         } else {
             mostrarAlerta('alerta-documento', 'Documento o contraseña incorrectos', 'error');
@@ -248,6 +311,7 @@ async function iniciarSesion() {
 // Entra al panel principal con los datos del estudiante
 function entrarAlPanel(estudiante) {
     estado.estudiante = estudiante;
+    sessionStorage.setItem(SS_ESTUDIANTE, JSON.stringify(estudiante));
     document.getElementById('bienvenida-nombre').textContent = `Hola, ${estudiante.nombre.split(' ')[0]}`;
     document.getElementById('bienvenida-grado').textContent = `${estudiante.grado} · Documento: ${estudiante.documento}`;
     document.getElementById('subtitulo-encabezado').textContent = estudiante.nombre;
@@ -259,6 +323,9 @@ function entrarAlPanel(estudiante) {
 function cerrarSesion() {
     estado.estudiante = null;
     estado.documentoIngresado = '';
+    sessionStorage.removeItem(SS_ESTUDIANTE);
+    sessionStorage.removeItem('estudianteToken');
+    limpiarEstadoSimulacro();
     document.getElementById('input-documento').value = '';
     document.getElementById('input-contrasena-login').value = '';
     document.getElementById('btn-salir-enc').classList.remove('visible');
@@ -282,7 +349,7 @@ async function cargarModulosEstudiante() {
         // Pedimos en paralelo la lista de módulos y el estado de intentos del estudiante
         const [resModulos, resEstado] = await Promise.all([
             fetch(`/api/modulos?grado=${encodeURIComponent(grado)}`),
-            fetch(`/api/simulacros/estado-intentos?estudianteId=${estado.estudiante.id}&grado=${encodeURIComponent(grado)}`)
+            fetch(`/api/simulacros/estado-intentos?estudianteId=${estado.estudiante.id}&grado=${encodeURIComponent(grado)}`, { headers: authHeaders() })
         ]);
         const dataModulos = await resModulos.json();
         const dataEstado = await resEstado.json();
@@ -346,7 +413,7 @@ async function comenzarSimulacro() {
             cantidad: 10,
             estudianteId: estado.estudiante.id
         });
-        const res = await fetch(`/api/preguntas/simulacro?${params}`);
+        const res = await fetch(`/api/preguntas/simulacro?${params}`, { headers: authHeaders() });
         const data = await res.json();
 
         if (!data.exito || !data.preguntas || data.preguntas.length === 0) {
@@ -360,9 +427,11 @@ async function comenzarSimulacro() {
         estado.preguntaActual = 0;
         estado.gradoRepaso = gradoRepaso;
         contadorSalidas = 0;
+        guardarEstadoSimulacro();
 
         mostrarSeccion('sec-simulacro');
         document.getElementById('modulo-texto-simulacro').textContent = estado.moduloSeleccionado;
+        iniciarTemporizador(DURACION_SIMULACRO);
         renderizarPregunta();
     } catch (e) {
         mostrarAlerta('alerta-seleccion', 'Error al cargar las preguntas', 'error');
@@ -417,6 +486,7 @@ function renderizarPregunta() {
 // Registra la respuesta seleccionada
 function seleccionarRespuesta(letra) {
     estado.respuestas[estado.preguntaActual] = letra;
+    guardarEstadoSimulacro();
     // Actualiza visualmente cuál opción está marcada
     document.querySelectorAll('.opcion').forEach((el, i) => {
         const letras = ['A', 'B', 'C', 'D'];
@@ -427,6 +497,7 @@ function seleccionarRespuesta(letra) {
 function preguntaSiguiente() {
     if (estado.preguntaActual < estado.preguntas.length - 1) {
         estado.preguntaActual++;
+        guardarEstadoSimulacro();
         renderizarPregunta();
     }
 }
@@ -434,6 +505,7 @@ function preguntaSiguiente() {
 function preguntaAnterior() {
     if (estado.preguntaActual > 0) {
         estado.preguntaActual--;
+        guardarEstadoSimulacro();
         renderizarPregunta();
     }
 }
@@ -477,13 +549,14 @@ async function finalizarSimulacro(forzado = false) {
         // Usamos el endpoint especial que valida respuestas contra la BD
         const res = await fetch('/api/simulacros/guardar-validado', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify(payload)
         });
         const data = await res.json();
 
         if (data.exito) {
             estado.ultimoSimulacroId = data.simulacroId;
+            limpiarEstadoSimulacro();
             mostrarResultados(data.puntaje, data.correctas, data.total);
         } else {
             alert(data.mensaje || 'Error al guardar el simulacro. Intenta de nuevo.');
@@ -516,7 +589,7 @@ async function verRevision() {
     if (!estado.ultimoSimulacroId) return;
 
     try {
-        const res = await fetch(`/api/simulacros/revision/${estado.ultimoSimulacroId}`);
+        const res = await fetch(`/api/simulacros/revision/${estado.ultimoSimulacroId}`, { headers: authHeaders() });
         const data = await res.json();
 
         const contenedor = document.getElementById('contenedor-revision');
@@ -532,12 +605,12 @@ async function verRevision() {
             };
 
             div.innerHTML = `
-                <div class="pregunta-texto">${i+1}. ${icono} ${r.enunciado}</div>
+                <div class="pregunta-texto">${i+1}. ${icono} ${escapeHtml(r.enunciado)}</div>
                 <div class="respuesta-info">
-                    <strong>Tu respuesta:</strong> ${r.respuesta_dada || 'Sin responder'} – ${opcionesTexto[r.respuesta_dada] || ''}<br>
-                    <strong>Respuesta correcta:</strong> ${r.respuesta_correcta} – ${opcionesTexto[r.respuesta_correcta]}
+                    <strong>Tu respuesta:</strong> ${escapeHtml(r.respuesta_dada || 'Sin responder')} – ${escapeHtml(opcionesTexto[r.respuesta_dada] || '')}<br>
+                    <strong>Respuesta correcta:</strong> ${escapeHtml(r.respuesta_correcta)} – ${escapeHtml(opcionesTexto[r.respuesta_correcta])}
                 </div>
-                ${r.justificacion ? `<div class="justificacion">💡 ${r.justificacion}</div>` : ''}
+                ${r.justificacion ? `<div class="justificacion">💡 ${escapeHtml(r.justificacion)}</div>` : ''}
             `;
             contenedor.appendChild(div);
         });
@@ -558,7 +631,7 @@ async function verHistorial() {
     mostrarSeccion('sec-historial');
 
     try {
-        const res = await fetch(`/api/simulacros/historial/${estado.estudiante.id}`);
+        const res = await fetch(`/api/simulacros/historial/${estado.estudiante.id}`, { headers: authHeaders() });
         const data = await res.json();
 
         if (data.historial.length === 0) {
@@ -602,7 +675,7 @@ async function verHistorial() {
 
 // Permitir Enter en el campo de documento
 document.getElementById('input-documento').addEventListener('keydown', e => {
-    if (e.key === 'Enter') verificarDocumento();
+    if (e.key === 'Enter') document.getElementById('input-contrasena-login').focus();
 });
 document.getElementById('input-contrasena-login').addEventListener('keydown', e => {
     if (e.key === 'Enter') iniciarSesion();
@@ -612,6 +685,11 @@ document.getElementById('input-contrasena-login').addEventListener('keydown', e 
 // DETECCIÓN DE CAMBIO DE PESTAÑA DURANTE EL SIMULACRO
 // ============================================================
 let contadorSalidas = 0;
+
+function authHeaders() {
+    const token = sessionStorage.getItem('estudianteToken');
+    return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
 
 function enSimulacro() {
     return document.getElementById('sec-simulacro').classList.contains('activa');
@@ -624,6 +702,7 @@ function cerrarModalTrampa() {
 document.addEventListener('visibilitychange', () => {
     if (document.hidden && enSimulacro()) {
         contadorSalidas++;
+        guardarEstadoSimulacro();
 
         if (contadorSalidas >= 3) {
             // A la tercera salida se finaliza automáticamente al volver
@@ -642,6 +721,47 @@ document.addEventListener('visibilitychange', () => {
         modal.style.display = 'flex';
     }
 });
+
+// ============================================================
+// RESTAURAR SESIÓN AL REFRESCAR LA PÁGINA
+// ============================================================
+function restaurarSesion() {
+    const estudianteGuardado = sessionStorage.getItem(SS_ESTUDIANTE);
+    if (!estudianteGuardado || !sessionStorage.getItem('estudianteToken')) return;
+
+    try {
+        const estudiante = JSON.parse(estudianteGuardado);
+        estado.estudiante = estudiante;
+        document.getElementById('bienvenida-nombre').textContent = `Hola, ${estudiante.nombre.split(' ')[0]}`;
+        document.getElementById('bienvenida-grado').textContent = `${estudiante.grado} · Documento: ${estudiante.documento}`;
+        document.getElementById('subtitulo-encabezado').textContent = estudiante.nombre;
+        document.getElementById('btn-salir-enc').classList.add('visible');
+
+        const simulacroGuardado = sessionStorage.getItem(SS_SIMULACRO);
+        if (simulacroGuardado) {
+            const sim = JSON.parse(simulacroGuardado);
+            estado.moduloSeleccionado = sim.moduloSeleccionado;
+            estado.gradoRepaso        = sim.gradoRepaso;
+            estado.preguntas          = sim.preguntas;
+            estado.respuestas         = sim.respuestas;
+            estado.preguntaActual     = sim.preguntaActual;
+            contadorSalidas           = sim.contadorSalidas || 0;
+
+            document.getElementById('modulo-texto-simulacro').textContent = sim.moduloSeleccionado;
+            mostrarSeccion('sec-simulacro');
+            renderizarPregunta();
+            iniciarTemporizador(sim.tiempoRestante > 0 ? sim.tiempoRestante : DURACION_SIMULACRO);
+        } else {
+            mostrarSeccion('sec-panel');
+            cargarModulosEstudiante();
+        }
+    } catch {
+        sessionStorage.removeItem(SS_ESTUDIANTE);
+        sessionStorage.removeItem(SS_SIMULACRO);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', restaurarSesion);
 </script>
 
 </body>

@@ -1,28 +1,18 @@
-// modulos.js
-// Rutas para gestión de módulos temáticos (cada módulo pertenece a un grado)
-
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
 const authDocente = require('../middleware/authDocente');
+const { validarModulo } = require('../middleware/validar');
 
-// GET /api/modulos?grado=Grado%206 — lista módulos, filtrando por grado si se indica
+// GET /api/modulos
 router.get('/', async (req, res) => {
-    try {
-        const modulos = await db.obtenerModulos(req.query.grado);
-        res.json({ exito: true, modulos });
-    } catch (error) {
-        console.error('Error obteniendo módulos:', error);
-        res.status(500).json({ exito: false, mensaje: 'Error interno del servidor' });
-    }
+    const modulos = await db.obtenerModulos(req.query.grado);
+    res.json({ exito: true, modulos });
 });
 
-// POST /api/modulos — crea un módulo nuevo para un grado
-router.post('/', authDocente, async (req, res) => {
+// POST /api/modulos
+router.post('/', authDocente, validarModulo, async (req, res, next) => {
     const { grado, nombre } = req.body;
-    if (!grado || !nombre || !nombre.trim()) {
-        return res.status(400).json({ exito: false, mensaje: 'Grado y nombre son obligatorios' });
-    }
     try {
         await db.insertarModulo(grado, nombre.trim());
         res.json({ exito: true, mensaje: 'Módulo creado' });
@@ -30,17 +20,13 @@ router.post('/', authDocente, async (req, res) => {
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ exito: false, mensaje: 'Ya existe ese módulo en este grado' });
         }
-        console.error('Error creando módulo:', error);
-        res.status(500).json({ exito: false, mensaje: 'Error interno del servidor' });
+        next(error);
     }
 });
 
-// PUT /api/modulos/:id — actualiza grado y/o nombre de un módulo
-router.put('/:id', authDocente, async (req, res) => {
+// PUT /api/modulos/:id
+router.put('/:id', authDocente, validarModulo, async (req, res, next) => {
     const { grado, nombre } = req.body;
-    if (!grado || !nombre || !nombre.trim()) {
-        return res.status(400).json({ exito: false, mensaje: 'Grado y nombre son obligatorios' });
-    }
     try {
         await db.actualizarModulo(req.params.id, grado, nombre.trim());
         res.json({ exito: true, mensaje: 'Módulo actualizado' });
@@ -48,20 +34,14 @@ router.put('/:id', authDocente, async (req, res) => {
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ exito: false, mensaje: 'Ya existe ese módulo en este grado' });
         }
-        console.error('Error actualizando módulo:', error);
-        res.status(500).json({ exito: false, mensaje: 'Error interno del servidor' });
+        next(error);
     }
 });
 
-// DELETE /api/modulos/:id — elimina un módulo
+// DELETE /api/modulos/:id
 router.delete('/:id', authDocente, async (req, res) => {
-    try {
-        await db.eliminarModulo(req.params.id);
-        res.json({ exito: true, mensaje: 'Módulo eliminado' });
-    } catch (error) {
-        console.error('Error eliminando módulo:', error);
-        res.status(500).json({ exito: false, mensaje: 'Error interno del servidor' });
-    }
+    await db.eliminarModulo(req.params.id);
+    res.json({ exito: true, mensaje: 'Módulo eliminado' });
 });
 
 module.exports = router;

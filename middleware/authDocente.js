@@ -9,7 +9,11 @@ function authDocente(req, res, next) {
     }
 
     try {
-        jwt.verify(token, process.env.JWT_SECRET);
+        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        if (payload.rol !== 'docente') {
+            return res.status(403).json({ exito: false, mensaje: 'Acceso denegado' });
+        }
+        req.docente = { id: payload.id, usuario: payload.usuario };
         next();
     } catch {
         return res.status(403).json({ exito: false, mensaje: 'Token inválido o expirado' });

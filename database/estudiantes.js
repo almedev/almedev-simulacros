@@ -6,15 +6,20 @@ async function buscarEstudiantePorDocumento(documento) {
 }
 
 async function registrarEstudiante(documento, nombre, grado, contrasena) {
-    const existe = await buscarEstudiantePorDocumento(documento);
-    if (existe) return { exito: false, mensaje: 'El documento ya está registrado' };
     const fecha = new Date();
     const hash = hashContrasena(contrasena);
-    await db.execute(
-        'INSERT INTO estudiantes (documento, nombre, grado, contrasena, contrasena_plana, fecha_registro) VALUES (?, ?, ?, ?, ?, ?)',
-        [documento, nombre, grado, hash, contrasena, fecha]
-    );
-    return { exito: true };
+    try {
+        await db.execute(
+            'INSERT INTO estudiantes (documento, nombre, grado, contrasena, contrasena_plana, fecha_registro) VALUES (?, ?, ?, ?, ?, ?)',
+            [documento, nombre, grado, hash, contrasena, fecha]
+        );
+        return { exito: true };
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            return { exito: false, mensaje: 'No fue posible completar el registro' };
+        }
+        throw error;
+    }
 }
 
 async function verificarEstudiante(documento, contrasena) {

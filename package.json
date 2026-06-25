@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "jest tests/"
+    "test": "jest tests/",
+    "test:e2e": "playwright test"
   },
   "jest": {
     "testEnvironment": "node",
@@ -26,6 +27,7 @@
     "mysql2": "^3.22.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "jest": "^30.4.2",
     "supertest": "^7.2.2"
   }

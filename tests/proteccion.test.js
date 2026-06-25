@@ -17,8 +17,12 @@ jest.mock('../database', () => ({
 
 const db = require('../database');
 
-function tokenValido() {
-    return jwt.sign({ rol: 'docente' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+function tokenDocente() {
+    return jwt.sign({ rol: 'docente', id: 1, usuario: 'docente_test' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+}
+
+function tokenEstudiante() {
+    return jwt.sign({ rol: 'estudiante', id: 99 }, process.env.JWT_SECRET, { expiresIn: '1h' });
 }
 
 describe('Rutas protegidas — sin token', () => {
@@ -48,13 +52,36 @@ describe('Rutas protegidas — sin token', () => {
     });
 });
 
+describe('Rutas de docente — token de estudiante debe dar 403', () => {
+    test('GET /api/estudiantes con token de estudiante devuelve 403', async () => {
+        const res = await request(app)
+            .get('/api/estudiantes')
+            .set('Authorization', `Bearer ${tokenEstudiante()}`);
+        expect(res.status).toBe(403);
+    });
+
+    test('DELETE /api/preguntas/1 con token de estudiante devuelve 403', async () => {
+        const res = await request(app)
+            .delete('/api/preguntas/1')
+            .set('Authorization', `Bearer ${tokenEstudiante()}`);
+        expect(res.status).toBe(403);
+    });
+
+    test('GET /api/preguntas con token de estudiante devuelve 403', async () => {
+        const res = await request(app)
+            .get('/api/preguntas')
+            .set('Authorization', `Bearer ${tokenEstudiante()}`);
+        expect(res.status).toBe(403);
+    });
+});
+
 describe('Rutas protegidas — con token válido', () => {
     test('GET /api/estudiantes devuelve 200', async () => {
         db.obtenerTodosEstudiantes.mockResolvedValue([]);
 
         const res = await request(app)
             .get('/api/estudiantes')
-            .set('Authorization', `Bearer ${tokenValido()}`);
+            .set('Authorization', `Bearer ${tokenDocente()}`);
 
         expect(res.status).toBe(200);
         expect(res.body.exito).toBe(true);
@@ -65,7 +92,7 @@ describe('Rutas protegidas — con token válido', () => {
 
         const res = await request(app)
             .delete('/api/estudiantes/1')
-            .set('Authorization', `Bearer ${tokenValido()}`);
+            .set('Authorization', `Bearer ${tokenDocente()}`);
 
         expect(res.status).toBe(200);
     });
@@ -75,7 +102,7 @@ describe('Rutas protegidas — con token válido', () => {
 
         const res = await request(app)
             .get('/api/simulacros/estadisticas')
-            .set('Authorization', `Bearer ${tokenValido()}`);
+            .set('Authorization', `Bearer ${tokenDocente()}`);
 
         expect(res.status).toBe(200);
     });

@@ -15,3 +15,10 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Backups de base de datos
+*.sql
+
+# Resultados de tests E2E (screenshots, videos, trazas de Playwright)
+test-results/
+playwright-report/
